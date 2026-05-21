@@ -1,0 +1,13 @@
+definition_version: 2
+entities:
+  data_platform_app:
+    type: streamlit
+    identifier:
+      name: DATA_PLATFORM_APP
+      schema: TPCH
+      database: SANDBOX
+    title: "Data Platform Dashboard"
+    query_warehouse: COMPUTE_WH
+    main_file: streamlit_app.py
+    pages_dir: pages/
+    additional_source_files: []

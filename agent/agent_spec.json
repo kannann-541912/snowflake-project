@@ -1,0 +1,34 @@
+{
+  "models": {
+    "orchestration": "auto"
+  },
+  "orchestration": {
+    "budget": {
+      "seconds": 900,
+      "tokens": 400000
+    }
+  },
+  "instructions": {
+    "orchestration": "",
+    "response": ""
+  },
+  "tools": [
+    {
+      "tool_spec": {
+        "type": "cortex_analyst_text_to_sql",
+        "name": "query_customer_orders",
+        "description": "Query customer and order data including customer details, order history, lifetime value, and order summaries from SANDBOX.TPCH"
+      }
+    }
+  ],
+  "tool_resources": {
+    "query_customer_orders": {
+      "execution_environment": {
+        "query_timeout": 299,
+        "type": "warehouse",
+        "warehouse": ""
+      },
+      "semantic_view": "SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY"
+    }
+  }
+}

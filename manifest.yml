@@ -1,0 +1,25 @@
+manifest_version: 2
+type: DCM_PROJECT
+default_target: 'DEV'
+
+targets:
+  DEV:
+    project_name: 'SANDBOX.TPCH.DATA_PLATFORM_DEV'
+    project_owner: SYSADMIN
+    templating_config: 'DEV'
+  PROD:
+    project_name: 'SANDBOX.TPCH.DATA_PLATFORM'
+    project_owner: SYSADMIN
+    templating_config: 'PROD'
+
+templating:
+  defaults:
+    env_suffix: '_DEV'
+    wh_size: 'XSMALL'
+  configurations:
+    DEV:
+      env_suffix: '_DEV'
+      wh_size: 'XSMALL'
+    PROD:
+      env_suffix: ''
+      wh_size: 'MEDIUM'

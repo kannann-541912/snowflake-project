@@ -1,0 +1,10 @@
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks
+
+title = "my-snowflake-project gitleaks config"
+
+# Allowlist paths that are known safe (e.g., sample configs with placeholder values)
+[allowlist]
+  paths = [
+    '''\.github/workflows/.*\.yml''',
+  ]

@@ -1,0 +1,121 @@
+name: Deploy (Main)
+
+on:
+  push:
+    branches: [main]
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+
+jobs:
+  deploy-dcm:
+    name: Deploy DCM Objects
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Snowflake CLI
+        run: pip install snowflake-cli
+
+      - name: Configure Snowflake connection
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/config.toml << 'EOF'
+          [connections.prod]
+          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
+          user = "${{ secrets.SNOWFLAKE_USER }}"
+          authenticator = "SNOWFLAKE_JWT"
+          private_key_file = "/tmp/snowflake_key.p8"
+          role = "SYSADMIN"
+          warehouse = "COMPUTE_WH"
+          EOF
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
+          chmod 600 /tmp/snowflake_key.p8
+
+      - name: DCM Analyze
+        run: snow dcm raw-analyze --target PROD -c prod
+
+      - name: DCM Plan
+        run: snow dcm plan --target PROD -c prod
+
+      - name: DCM Deploy
+        run: snow dcm deploy --target PROD -c prod --alias "gh-${{ github.sha }}"
+
+  deploy-streamlit:
+    name: Deploy Streamlit App
+    needs: deploy-dcm
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: streamlit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Snowflake CLI
+        run: pip install snowflake-cli
+
+      - name: Configure Snowflake connection
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/config.toml << 'EOF'
+          [connections.prod]
+          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
+          user = "${{ secrets.SNOWFLAKE_USER }}"
+          authenticator = "SNOWFLAKE_JWT"
+          private_key_file = "/tmp/snowflake_key.p8"
+          role = "SYSADMIN"
+          warehouse = "COMPUTE_WH"
+          database = "SANDBOX"
+          schema = "TPCH"
+          EOF
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
+          chmod 600 /tmp/snowflake_key.p8
+
+      - name: Deploy Streamlit app
+        run: snow streamlit deploy --replace -c prod
+
+  deploy-agent:
+    name: Deploy Cortex Agent
+    needs: deploy-dcm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Snowflake CLI
+        run: pip install snowflake-cli
+
+      - name: Configure Snowflake connection
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/config.toml << 'EOF'
+          [connections.prod]
+          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
+          user = "${{ secrets.SNOWFLAKE_USER }}"
+          authenticator = "SNOWFLAKE_JWT"
+          private_key_file = "/tmp/snowflake_key.p8"
+          role = "SYSADMIN"
+          warehouse = "COMPUTE_WH"
+          database = "SANDBOX"
+          schema = "TPCH"
+          EOF
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
+          chmod 600 /tmp/snowflake_key.p8
+
+      - name: Deploy Cortex Agent
+        run: python scripts/deploy_agent.py | snow sql -c prod --stdin

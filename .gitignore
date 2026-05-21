@@ -1,0 +1,22 @@
+# Snowflake CLI
+out/
+.snow/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets - NEVER commit
+config.toml
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
