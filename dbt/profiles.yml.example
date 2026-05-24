@@ -1,0 +1,50 @@
+# dbt profile template — copy to ~/.dbt/profiles.yml and set SNOWFLAKE_PAT env var.
+# NEVER commit the actual profiles.yml — it may contain secrets.
+#
+# Authentication: Snowflake Programmatic Access Token (PAT)
+# Set env var:  export SNOWFLAKE_PAT=<your-pat>
+
+tpch_data_platform:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "xna38553.east-us-2.azure"
+      user: "MCP_SERVICE_USER"
+      authenticator: "oauth"
+      token: "{{ env_var('SNOWFLAKE_PAT') }}"
+      role: SYSADMIN
+      database: SANDBOX
+      warehouse: ANALYTICS_WH
+      schema: TPCH_DEV
+      threads: 4
+      client_session_keep_alive: false
+      query_tag: "dbt_dev"
+
+    prod:
+      type: snowflake
+      account: "xna38553.east-us-2.azure"
+      user: "MCP_SERVICE_USER"
+      authenticator: "oauth"
+      token: "{{ env_var('SNOWFLAKE_PAT') }}"
+      role: SYSADMIN
+      database: SANDBOX
+      warehouse: ANALYTICS_WH
+      schema: TPCH
+      threads: 8
+      client_session_keep_alive: false
+      query_tag: "dbt_prod"
+
+    ci:
+      type: snowflake
+      account: "xna38553.east-us-2.azure"
+      user: "MCP_SERVICE_USER"
+      authenticator: "oauth"
+      token: "{{ env_var('SNOWFLAKE_PAT') }}"
+      role: SYSADMIN
+      database: SANDBOX
+      warehouse: ANALYTICS_WH
+      schema: "TPCH_CI_{{ env_var('CI_RUN_ID', 'local') }}"
+      threads: 4
+      client_session_keep_alive: false
+      query_tag: "dbt_ci"

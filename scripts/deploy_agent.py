@@ -4,15 +4,18 @@ Outputs the SQL to stdout for piping into `snow sql`.
 
 Usage:
     python scripts/deploy_agent.py
-    python scripts/deploy_agent.py --dry-run   (just print, don't execute)
+    python scripts/deploy_agent.py --dry-run          # Print SQL, don't execute
+    python scripts/deploy_agent.py --spec-version v2  # Deploy a versioned spec
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
-AGENT_SPEC_PATH = Path("agent/agent_spec.json")
 INSTRUCTIONS_PATH = Path("agent/instructions.md")
+ORCHESTRATION_PROMPT_PATH = Path("agent/prompts/orchestration.md")
+RESPONSE_PROMPT_PATH = Path("agent/prompts/response.md")
 
 # Agent coordinates
 AGENT_DATABASE = "SANDBOX"
@@ -21,34 +24,52 @@ AGENT_NAME = "TPCH_ANALYST"
 AGENT_FQN = f"{AGENT_DATABASE}.{AGENT_SCHEMA}.{AGENT_NAME}"
 
 
-def build_sql() -> str:
-    spec = json.loads(AGENT_SPEC_PATH.read_text())
+def resolve_spec_path(spec_version: str | None) -> Path:
+    if spec_version:
+        versioned = Path(f"agent/specs/{spec_version}/agent_spec.json")
+        if not versioned.exists():
+            print(f"ERROR: Versioned spec not found: {versioned}", file=sys.stderr)
+            sys.exit(1)
+        return versioned
+    # Default: canonical spec at agent/agent_spec.json
+    default = Path("agent/agent_spec.json")
+    if not default.exists():
+        print(f"ERROR: {default} not found. Run from project root.", file=sys.stderr)
+        sys.exit(1)
+    return default
 
-    # Inject instructions from the markdown file
-    if INSTRUCTIONS_PATH.exists():
-        instructions_text = INSTRUCTIONS_PATH.read_text().strip()
-        if "instructions" not in spec:
-            spec["instructions"] = {}
-        spec["instructions"]["orchestration"] = instructions_text
+
+def build_sql(spec_version: str | None) -> str:
+    spec_path = resolve_spec_path(spec_version)
+    spec = json.loads(spec_path.read_text())
+
+    if "instructions" not in spec:
+        spec["instructions"] = {}
+
+    # Prefer granular prompt files; fall back to legacy instructions.md
+    if ORCHESTRATION_PROMPT_PATH.exists():
+        spec["instructions"]["orchestration"] = ORCHESTRATION_PROMPT_PATH.read_text().strip()
+    elif INSTRUCTIONS_PATH.exists():
+        spec["instructions"]["orchestration"] = INSTRUCTIONS_PATH.read_text().strip()
+
+    if RESPONSE_PROMPT_PATH.exists():
+        spec["instructions"]["response"] = RESPONSE_PROMPT_PATH.read_text().strip()
 
     spec_json = json.dumps(spec, indent=2)
-
-    sql = f"CREATE OR REPLACE AGENT {AGENT_FQN}\nFROM SPECIFICATION $spec$\n{spec_json}\n$spec$;"
-    return sql
+    return f"CREATE OR REPLACE AGENT {AGENT_FQN}\nFROM SPECIFICATION $spec$\n{spec_json}\n$spec$;"
 
 
 def main():
-    if not AGENT_SPEC_PATH.exists():
-        print(f"ERROR: {AGENT_SPEC_PATH} not found. Run from project root.", file=sys.stderr)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Generate Cortex Agent deployment SQL")
+    parser.add_argument("--dry-run", action="store_true", help="Print SQL without executing")
+    parser.add_argument("--spec-version", default=None, help="Spec version to deploy, e.g. v2")
+    args = parser.parse_args()
 
-    sql = build_sql()
+    sql = build_sql(args.spec_version)
 
-    if "--dry-run" in sys.argv:
+    if args.dry_run:
         print("-- DRY RUN: SQL that would be executed:")
-        print(sql)
-    else:
-        print(sql)
+    print(sql)
 
 
 if __name__ == "__main__":

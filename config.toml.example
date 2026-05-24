@@ -1,0 +1,46 @@
+# Snowflake CLI connection config template.
+# Copy to config.toml and fill in your PAT, then add config.toml to .gitignore.
+# Alternatively, copy to ~/.snowflake/config.toml for system-wide use.
+#
+# Authentication: Snowflake Programmatic Access Token (PAT)
+# Generate a PAT in Snowsight: Admin → Security → Programmatic Access Tokens
+
+[connections.default]
+account       = "xna38553.east-us-2.azure"
+user          = "MCP_SERVICE_USER"
+authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+token         = ""          # Paste your PAT here — NEVER COMMIT
+warehouse     = "ANALYTICS_WH"
+database      = "SANDBOX"
+schema        = "TPCH"
+role          = "SYSADMIN"
+
+[connections.dev]
+account       = "xna38553.east-us-2.azure"
+user          = "MCP_SERVICE_USER"
+authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+token         = ""
+warehouse     = "ANALYTICS_WH"
+database      = "SANDBOX"
+schema        = "TPCH"
+role          = "SYSADMIN"
+
+[connections.prod]
+account       = "xna38553.east-us-2.azure"
+user          = "MCP_SERVICE_USER"
+authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+token         = ""
+warehouse     = "ANALYTICS_WH"
+database      = "SANDBOX"
+schema        = "TPCH"
+role          = "SYSADMIN"
+
+[connections.ci]
+account       = "xna38553.east-us-2.azure"
+user          = "MCP_SERVICE_USER"
+authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+token         = ""          # Set via SNOWFLAKE_PAT GitHub Secret in CI
+warehouse     = "ANALYTICS_WH"
+database      = "SANDBOX"
+schema        = "TPCH"
+role          = "SYSADMIN"

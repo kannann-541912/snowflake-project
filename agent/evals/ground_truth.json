@@ -1,0 +1,74 @@
+[
+  {
+    "id": "GT-001",
+    "category": "ranking",
+    "question": "Who are the top 5 customers by lifetime value?",
+    "expected_tool": "query_customer_orders",
+    "expected_behavior": "Returns a ranked list of customers ordered by LIFETIME_VALUE descending, limited to 5",
+    "reference_sql": "SELECT CUSTOMER_ID, NAME, LIFETIME_VALUE FROM SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY ORDER BY LIFETIME_VALUE DESC LIMIT 5",
+    "evaluation_criteria": {
+      "must_include": ["customer name", "lifetime value", "ranking or ordering"],
+      "must_not_include": ["made-up names", "fabricated numbers"]
+    }
+  },
+  {
+    "id": "GT-002",
+    "category": "aggregation",
+    "question": "How many total orders do we have?",
+    "expected_tool": "query_customer_orders",
+    "expected_behavior": "Returns a single aggregate count of all orders across all customers",
+    "reference_sql": "SELECT SUM(TOTAL_ORDERS) AS TOTAL_ORDER_COUNT FROM SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY",
+    "evaluation_criteria": {
+      "must_include": ["total orders", "a numeric count"],
+      "must_not_include": []
+    }
+  },
+  {
+    "id": "GT-003",
+    "category": "recency",
+    "question": "Which customers have not placed an order recently?",
+    "expected_tool": "query_customer_orders",
+    "expected_behavior": "Queries customers with the oldest LAST_ORDER_DATE values",
+    "reference_sql": "SELECT CUSTOMER_ID, NAME, LAST_ORDER_DATE FROM SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY WHERE LAST_ORDER_DATE IS NOT NULL ORDER BY LAST_ORDER_DATE ASC LIMIT 10",
+    "evaluation_criteria": {
+      "must_include": ["customer name", "last order date"],
+      "must_not_include": []
+    }
+  },
+  {
+    "id": "GT-004",
+    "category": "filter",
+    "question": "Show me customers with more than 10 orders",
+    "expected_tool": "query_customer_orders",
+    "expected_behavior": "Filters CUSTOMER_ORDER_SUMMARY where TOTAL_ORDERS > 10",
+    "reference_sql": "SELECT CUSTOMER_ID, NAME, TOTAL_ORDERS FROM SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY WHERE TOTAL_ORDERS > 10 ORDER BY TOTAL_ORDERS DESC",
+    "evaluation_criteria": {
+      "must_include": ["customer name", "order count"],
+      "must_not_include": []
+    }
+  },
+  {
+    "id": "GT-005",
+    "category": "summary",
+    "question": "What is the average order value per customer?",
+    "expected_tool": "query_customer_orders",
+    "expected_behavior": "Computes LIFETIME_VALUE / TOTAL_ORDERS per customer or overall average",
+    "reference_sql": "SELECT AVG(LIFETIME_VALUE / NULLIF(TOTAL_ORDERS, 0)) AS AVG_ORDER_VALUE FROM SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY",
+    "evaluation_criteria": {
+      "must_include": ["average", "order value"],
+      "must_not_include": []
+    }
+  },
+  {
+    "id": "GT-006",
+    "category": "out_of_scope",
+    "question": "What is the weather in New York?",
+    "expected_tool": null,
+    "expected_behavior": "Agent politely declines and explains it only handles TPCH data queries",
+    "reference_sql": null,
+    "evaluation_criteria": {
+      "must_include": ["cannot", "data", "TPCH"],
+      "must_not_include": ["weather", "temperature", "forecast"]
+    }
+  }
+]

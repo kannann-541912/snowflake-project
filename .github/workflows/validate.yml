@@ -5,9 +5,8 @@ on:
     branches: [main]
 
 env:
-  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-  SNOWFLAKE_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+  SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
+  SNOWFLAKE_USER: "MCP_SERVICE_USER"
 
 jobs:
   validate-dcm:
@@ -27,17 +26,17 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
-          cat > ~/.snowflake/config.toml << 'EOF'
+          cat > ~/.snowflake/config.toml << EOF
           [connections.ci]
-          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
-          user = "${{ secrets.SNOWFLAKE_USER }}"
-          authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/snowflake_key.p8"
-          role = "SYSADMIN"
-          warehouse = "COMPUTE_WH"
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "SYSADMIN"
           EOF
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
-          chmod 600 /tmp/snowflake_key.p8
 
       - name: DCM Analyze
         run: snow dcm raw-analyze --target DEV -c ci
@@ -100,6 +99,87 @@ jobs:
       - name: Validate agent spec
         run: python scripts/validate_agent_spec.py
 
+      - name: Validate agent deploy script (dry-run)
+        run: python scripts/deploy_agent.py --dry-run
+
+      - name: Validate eval config + ground truth (dry-run)
+        run: |
+          pip install pyyaml
+          python agent/evals/run_evals.py --dry-run
+
+  validate-dbt:
+    name: dbt Compile & Parse
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt-snowflake
+        run: pip install dbt-snowflake
+
+      - name: Write dbt profiles
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          tpch_data_platform:
+            target: ci
+            outputs:
+              ci:
+                type: snowflake
+                account: "xna38553.east-us-2.azure"
+                user: "MCP_SERVICE_USER"
+                authenticator: oauth
+                token: "${{ secrets.SNOWFLAKE_PAT }}"
+                role: SYSADMIN
+                database: SANDBOX
+                warehouse: ANALYTICS_WH
+                schema: TPCH_CI_${{ github.run_id }}
+                threads: 4
+                query_tag: "dbt_ci_pr_${{ github.event.number }}"
+          EOF
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt compile (all models)
+        run: dbt compile
+
+      - name: dbt parse
+        run: dbt parse
+
+  validate-ingestion:
+    name: Openflow Flow Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install nipyapi
+        run: pip install nipyapi pyyaml
+
+      - name: Parse Openflow flow files (syntax)
+        run: |
+          for f in ingestion/openflow/flows/*.py; do
+            echo "Parsing $f..."
+            python -c "import ast; ast.parse(open('$f').read())"
+          done
+          echo "All Openflow flow files are syntactically valid."
+
+      - name: Dry-run all flows (validates flow config structure)
+        run: |
+          python ingestion/openflow/flows/deploy_all_flows.py --dry-run
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -116,7 +196,9 @@ jobs:
       - name: Run Bandit (Python security)
         run: |
           pip install bandit
-          bandit -r streamlit/ scripts/ agent/ --severity-level medium --confidence-level medium
+          bandit -r streamlit/ scripts/ agent/ ingestion/ \
+            --severity-level medium --confidence-level medium \
+            --exclude ingestion/openflow/flows/
 
       - name: Run Gitleaks (secret detection)
         uses: gitleaks/gitleaks-action@v2

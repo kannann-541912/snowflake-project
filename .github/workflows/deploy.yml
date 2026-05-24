@@ -5,10 +5,13 @@ on:
     branches: [main]
 
 env:
-  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
+  SNOWFLAKE_USER: "MCP_SERVICE_USER"
 
 jobs:
+  # ─────────────────────────────────────────────
+  # 1. DCM: Infrastructure + schema objects
+  # ─────────────────────────────────────────────
   deploy-dcm:
     name: Deploy DCM Objects
     runs-on: ubuntu-latest
@@ -26,17 +29,17 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
-          cat > ~/.snowflake/config.toml << 'EOF'
+          cat > ~/.snowflake/config.toml << EOF
           [connections.prod]
-          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
-          user = "${{ secrets.SNOWFLAKE_USER }}"
-          authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/snowflake_key.p8"
-          role = "SYSADMIN"
-          warehouse = "COMPUTE_WH"
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "SYSADMIN"
           EOF
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
-          chmod 600 /tmp/snowflake_key.p8
 
       - name: DCM Analyze
         run: snow dcm raw-analyze --target PROD -c prod
@@ -47,9 +50,135 @@ jobs:
       - name: DCM Deploy
         run: snow dcm deploy --target PROD -c prod --alias "gh-${{ github.sha }}"
 
+  # ─────────────────────────────────────────────
+  # 2. Ingestion: Snowflake stages, streams, tasks
+  # ─────────────────────────────────────────────
+  deploy-ingestion:
+    name: Deploy Ingestion Objects (Stages, Streams, Tasks)
+    needs: deploy-dcm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Snowflake CLI
+        run: pip install snowflake-cli
+
+      - name: Configure Snowflake connection
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/config.toml << EOF
+          [connections.prod]
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "SYSADMIN"
+          EOF
+
+      - name: Deploy stages and file formats
+        run: snow sql -f ingestion/snowflake/stages.sql -c prod
+
+      - name: Deploy streams and landing tables
+        run: snow sql -f ingestion/snowflake/streams.sql -c prod
+
+      - name: Deploy Snowflake Task DAG
+        run: snow sql -f ingestion/snowflake/tasks.sql -c prod
+
+      - name: Resume tasks
+        run: |
+          snow sql -q "ALTER TASK SANDBOX.TPCH.REFRESH_SUMMARY_TASK RESUME;" -c prod
+          snow sql -q "ALTER TASK SANDBOX.TPCH.LOAD_ORDERS_TASK RESUME;" -c prod
+          snow sql -q "ALTER TASK SANDBOX.TPCH.MERGE_CUSTOMERS_TASK RESUME;" -c prod
+          snow sql -q "ALTER TASK SANDBOX.TPCH.PIPELINE_ROOT_TASK RESUME;" -c prod
+
+      - name: Deploy Snowpark stored procedures
+        run: |
+          pip install snowflake-snowpark-python
+          export SNOWFLAKE_ACCOUNT="xna38553.east-us-2.azure"
+          export SNOWFLAKE_USER="MCP_SERVICE_USER"
+          export SNOWFLAKE_PAT="${{ secrets.SNOWFLAKE_PAT }}"
+          python ingestion/snowpark/transforms.py
+
+      - name: Deploy Openflow flows to SPCS runtime
+        env:
+          OPENFLOW_RUNTIME_URL: ${{ secrets.OPENFLOW_RUNTIME_URL }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          pip install nipyapi
+          python ingestion/openflow/flows/deploy_all_flows.py
+
+  # ─────────────────────────────────────────────
+  # 3. dbt: Transform layer
+  # ─────────────────────────────────────────────
+  deploy-dbt:
+    name: Deploy dbt Models
+    needs: deploy-ingestion
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt-snowflake
+        run: pip install dbt-snowflake
+
+      - name: Write dbt profiles
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          tpch_data_platform:
+            target: prod
+            outputs:
+              prod:
+                type: snowflake
+                account: "xna38553.east-us-2.azure"
+                user: "MCP_SERVICE_USER"
+                authenticator: oauth
+                token: "${{ secrets.SNOWFLAKE_PAT }}"
+                role: SYSADMIN
+                database: SANDBOX
+                warehouse: ANALYTICS_WH
+                schema: TPCH
+                threads: 8
+                query_tag: "dbt_prod_${{ github.sha }}"
+          EOF
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt source freshness
+        run: dbt source freshness
+
+      - name: dbt run (all models)
+        run: dbt run --target prod
+
+      - name: dbt test
+        run: dbt test --target prod
+
+      - name: dbt snapshot
+        run: dbt snapshot --target prod
+
+  # ─────────────────────────────────────────────
+  # 4. Streamlit app
+  # ─────────────────────────────────────────────
   deploy-streamlit:
     name: Deploy Streamlit App
-    needs: deploy-dcm
+    needs: deploy-dbt
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -68,26 +197,27 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
-          cat > ~/.snowflake/config.toml << 'EOF'
+          cat > ~/.snowflake/config.toml << EOF
           [connections.prod]
-          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
-          user = "${{ secrets.SNOWFLAKE_USER }}"
-          authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/snowflake_key.p8"
-          role = "SYSADMIN"
-          warehouse = "COMPUTE_WH"
-          database = "SANDBOX"
-          schema = "TPCH"
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "SYSADMIN"
           EOF
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
-          chmod 600 /tmp/snowflake_key.p8
 
       - name: Deploy Streamlit app
         run: snow streamlit deploy --replace -c prod
 
+  # ─────────────────────────────────────────────
+  # 5. Cortex Agent
+  # ─────────────────────────────────────────────
   deploy-agent:
     name: Deploy Cortex Agent
-    needs: deploy-dcm
+    needs: deploy-dbt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,19 +233,50 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
-          cat > ~/.snowflake/config.toml << 'EOF'
+          cat > ~/.snowflake/config.toml << EOF
           [connections.prod]
-          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
-          user = "${{ secrets.SNOWFLAKE_USER }}"
-          authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/snowflake_key.p8"
-          role = "SYSADMIN"
-          warehouse = "COMPUTE_WH"
-          database = "SANDBOX"
-          schema = "TPCH"
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "SYSADMIN"
           EOF
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
-          chmod 600 /tmp/snowflake_key.p8
 
       - name: Deploy Cortex Agent
         run: python scripts/deploy_agent.py | snow sql -c prod --stdin
+
+  # ─────────────────────────────────────────────
+  # 6. Agent evals (post-deploy smoke test)
+  # ─────────────────────────────────────────────
+  run-agent-evals:
+    name: Agent Evaluation Suite
+    needs: deploy-agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install eval dependencies
+        run: pip install snowflake-connector-python pyyaml
+
+      - name: Run agent evaluation suite
+        env:
+          SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
+          SNOWFLAKE_USER: "MCP_SERVICE_USER"
+          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
+        run: python agent/evals/run_evals.py
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-eval-results-${{ github.sha }}
+          path: agent/evals/results/
+          retention-days: 30
