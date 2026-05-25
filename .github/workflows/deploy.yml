@@ -70,8 +70,8 @@ jobs:
     name: Create Branch Clone DB
     needs: guard
     runs-on: ubuntu-latest
-    # Only runs for DEV environment
-    if: ${{ github.event_name == 'push' && 'PROD' || inputs.environment != 'PROD' }}
+    # Only runs for manual DEV dispatches — push to main (PROD) skips this job
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'DEV'
     outputs:
       clone_db: ${{ steps.set-clone-name.outputs.clone_db }}
 
@@ -459,13 +459,14 @@ jobs:
   cleanup-clone:
     name: Drop Branch Clone DB
     needs: [clone-db, deploy-dcm, deploy-ingestion, deploy-dbt, deploy-streamlit, deploy-agent, run-agent-evals]
-    # Run even if earlier jobs failed so clone is always cleaned up
+    # Run even if earlier jobs failed so clone is always cleaned up.
     # Skip for: PROD deploys | keep_clone=true | clone-db was skipped
-    if: >
+    if: >-
       always() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.environment == 'DEV' &&
       needs.clone-db.result == 'success' &&
-      inputs.keep_clone != 'true' &&
-      env.DEPLOY_ENV == 'DEV'
+      inputs.keep_clone != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
