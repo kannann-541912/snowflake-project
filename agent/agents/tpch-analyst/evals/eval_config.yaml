@@ -44,9 +44,9 @@ thresholds:
 
 # Results output
 results:
-  output_dir: "agent/evals/results"
-  write_to_snowflake: true        # Also persist results to SANDBOX.TPCH.AGENT_EVAL_RESULTS
-  table: "SANDBOX.TPCH.AGENT_EVAL_RESULTS"
+  output_dir: "agent/agents/tpch-analyst/evals/results"
+  write_to_snowflake: true
+  table: "SANDBOX.TPCH.AGENT_EVAL_RESULTS_TPCH_ANALYST"
 
-# Ground truth file
-ground_truth_file: "agent/evals/ground_truth.json"
+# Ground truth file (relative to project root)
+ground_truth_file: "agent/agents/tpch-analyst/evals/ground_truth.json"

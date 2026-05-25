@@ -144,16 +144,41 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Validate agent spec
-        run: python scripts/validate_agent_spec.py
+      - name: Install dependencies
+        run: pip install pyyaml
 
-      - name: Validate agent deploy script (dry-run)
-        run: python scripts/deploy_agent.py --dry-run
-
-      - name: Validate eval config + ground truth (dry-run)
+      - name: Verify each agent has required files
         run: |
-          pip install pyyaml
-          python agent/evals/run_evals.py --dry-run
+          python - <<'EOF'
+          import pathlib, sys
+
+          agents_dir = pathlib.Path("agent/agents")
+          errors = []
+          for agent_dir in sorted(agents_dir.iterdir()):
+              if not agent_dir.is_dir():
+                  continue
+              for required in ("agent.yml",):
+                  if not (agent_dir / required).exists():
+                      errors.append(f"MISSING {required} in {agent_dir.name}/")
+              spec_jsons = list((agent_dir / "specs").rglob("agent_spec.json")) if (agent_dir / "specs").exists() else []
+              if not spec_jsons:
+                  errors.append(f"No agent_spec.json found in {agent_dir.name}/specs/")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"All agent directories have required files.")
+          EOF
+
+      - name: List discovered agents
+        run: python agent/deploy_all.py --list
+
+      - name: Validate deploy SQL for all agents (dry-run)
+        run: python agent/deploy_all.py --dry-run -c default
+
+      - name: Validate eval configs for all agents (dry-run)
+        run: python agent/run_evals.py --all --dry-run
 
   validate-dbt:
     name: dbt Compile & Parse

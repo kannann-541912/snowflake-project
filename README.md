@@ -99,10 +99,15 @@ snowflake-project/
 │       └── fraud-risk-v1/       # High-risk, dual-approval worked example
 │
 ├── agent/                       # ── AgentOps: Cortex Agent lifecycle ──
-│   ├── specs/v1/                # Versioned agent spec + metadata/changelog
-│   ├── prompts/                 # orchestration.md + response.md
-│   ├── evals/                   # LLM-as-judge eval suite (AI_JUDGE)
-│   └── monitoring/              # Usage SQL + alert policy
+│   ├── deploy_all.py            # Deploy one or all agents
+│   ├── run_evals.py             # Shared eval runner — works for any agent
+│   └── agents/
+│       └── tpch-analyst/        # One folder per agent
+│           ├── agent.yml        # Identity: name, fqn, database, schema
+│           ├── specs/v1/        # Versioned spec + metadata/changelog
+│           ├── prompts/         # orchestration.md + response.md
+│           ├── evals/           # eval_config.yaml, ground_truth.json, results/
+│           └── monitoring/      # usage_queries.sql + alert_policy.yml
 │
 ├── streamlit/                   # ── Dashboards: Multi-app Streamlit in Snowflake ──
 │   ├── deploy_all.py            # Deploy one or all apps via Snowflake CLI
@@ -252,48 +257,55 @@ For the full developer guide see [`custom-ml-models/README.md`](custom-ml-models
 
 `agent/` owns the complete operational lifecycle of the `TPCH_ANALYST` Cortex Agent — the AI-powered data analyst scoped to `SANDBOX.TPCH`.
 
-### Agent Coordinates
+Each agent lives in `agent/agents/<name>/` with its own spec, prompts, evals, and monitoring. The folder structure mirrors `streamlit/apps/` — adding a new agent is just adding a new subfolder.
 
-| Property | Value |
-|----------|-------|
-| Fully-qualified name | `SANDBOX.TPCH.TPCH_ANALYST` |
-| Current spec | `agent/specs/v1/agent_spec.json` |
-| Eval judge | `SNOWFLAKE.CORTEX.AI_JUDGE` (llama3.1-70b) |
-| Eval pass threshold | Overall ≥ 0.80, per-question ≥ 0.60, tool accuracy 1.00 |
+### Deployed Agents
 
-### Deploying the Agent
+| Agent folder | Snowflake FQN | Description |
+|-------------|--------------|-------------|
+| `tpch-analyst` | `SANDBOX.TPCH.TPCH_ANALYST` | Natural-language analyst for customer and order data |
+
+### Deploying Agents
 
 ```bash
-# Dry-run: inspect the generated SQL
-python scripts/deploy_agent.py --dry-run
+# Deploy all agents
+python agent/deploy_all.py -c default
 
-# Deploy current spec
-python scripts/deploy_agent.py | snow sql -c default --stdin
+# Deploy a single agent
+python agent/deploy_all.py -c default --agent tpch-analyst
 
-# Deploy a specific versioned spec
-python scripts/deploy_agent.py --spec-version v2 | snow sql -c default --stdin
+# Dry-run
+python agent/deploy_all.py --dry-run
 ```
 
 ### Running Evaluations
 
 ```bash
-# Full eval suite against the live agent
-python agent/evals/run_evals.py
+# Run evals for all agents
+python agent/run_evals.py --all
 
-# Test a spec version before deploying
-python agent/evals/run_evals.py --spec-version v2
+# Run evals for a specific agent
+python agent/run_evals.py --agent tpch-analyst
 
-# Dry-run (no Snowflake calls — validates config and ground truth)
-python agent/evals/run_evals.py --dry-run
+# Dry-run (validates config + ground truth without Snowflake calls)
+python agent/run_evals.py --agent tpch-analyst --dry-run
 ```
 
-### Promoting a New Agent Version
+### Eval Pass Thresholds (per agent, in `evals/eval_config.yaml`)
 
-1. Copy `agent/specs/v1/` → `agent/specs/v2/` and modify `agent_spec.json`.
-2. Set `status: draft` in `metadata.yml` and document the changelog.
-3. Run `python agent/evals/run_evals.py --dry-run` locally.
-4. Open a PR — CI runs full eval dry-run automatically.
-5. After merge, CI deploys with `--spec-version v2`.
+| Threshold | Value |
+|-----------|-------|
+| Overall weighted score | ≥ 0.80 |
+| Per-question minimum | ≥ 0.60 |
+| Tool call accuracy | 1.00 |
+
+### Promoting a New Spec Version
+
+1. Copy `agents/<name>/specs/v1/` → `v2/`, modify `agent_spec.json`.
+2. Set `status: draft` in `metadata.yml` and add a changelog entry.
+3. Run `python agent/deploy_all.py --dry-run --agent <name>` locally.
+4. Open a PR — CI validates all agents automatically.
+5. After merge, CI deploys all agents.
 
 For the full developer guide see [`agent/README.md`](agent/README.md).
 

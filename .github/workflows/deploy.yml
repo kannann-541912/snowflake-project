@@ -486,8 +486,11 @@ jobs:
           role          = "SYSADMIN"
           EOF
 
-      - name: Deploy Cortex Agent
-        run: python scripts/deploy_agent.py | snow sql -c ${{ env.SNOW_CONN }} --stdin
+      - name: List discovered agents
+        run: python agent/deploy_all.py --list
+
+      - name: Deploy all Cortex Agents
+        run: python agent/deploy_all.py -c ${{ env.SNOW_CONN }}
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 9. Agent evals — post-deploy smoke test
@@ -508,19 +511,19 @@ jobs:
       - name: Install eval dependencies
         run: pip install snowflake-connector-python pyyaml
 
-      - name: Run agent evaluation suite
+      - name: Run evaluation suites for all agents
         env:
           SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
           SNOWFLAKE_USER:    "MCP_SERVICE_USER"
           SNOWFLAKE_PAT:     ${{ secrets.SNOWFLAKE_PAT }}
-        run: python agent/evals/run_evals.py
+        run: python agent/run_evals.py --all
 
       - name: Upload eval results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agent-eval-results-${{ github.sha }}-${{ env.DEPLOY_ENV }}
-          path: agent/evals/results/
+          path: agent/agents/**/evals/results/
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────────

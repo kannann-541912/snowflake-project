@@ -1,129 +1,149 @@
-# agent — Cortex Agent Developer Guide
+# agent — AgentOps Developer Guide
 
-The `agent/` directory owns everything required to define, deploy, evaluate, and monitor the `TPCH_ANALYST` Cortex Agent: the natural-language data analyst for `SANDBOX.TPCH`.
+The `agent/` directory owns the complete operational lifecycle of all Cortex Agents in this account. Each agent is self-contained in its own subfolder. A shared eval runner and deploy script work across all agents automatically.
 
 ## Directory Layout
 
 ```
 agent/
-├── prompts/
-│   ├── orchestration.md       # System prompt — agent identity, tool rules, safety
-│   └── response.md            # Response formatting instructions
-├── specs/
-│   ├── v1/
-│   │   ├── agent_spec.json    # Versioned spec snapshot (tools, model, tool_resources)
-│   │   └── metadata.yml       # Version changelog and status (draft → stable → deprecated)
-│   └── README.md              # Spec versioning policy
-├── evals/
-│   ├── eval_config.yaml       # Eval suite config (judge model, thresholds, connection)
-│   ├── ground_truth.json      # Question/answer pairs for LLM-as-judge scoring
-│   ├── run_evals.py           # Eval runner — calls SNOWFLAKE.CORTEX.AI_JUDGE
-│   └── results/               # Eval output written here (and to Snowflake table)
-└── monitoring/
-    ├── usage_queries.sql      # Operational queries — usage, latency, errors
-    └── alert_policy.yml       # Alert thresholds and escalation policy
+├── deploy_all.py              # Deploy one or all agents via scripts/deploy_agent.py
+├── run_evals.py               # Shared evaluation runner — works for any agent
+└── agents/
+    └── tpch-analyst/          # TPCH_ANALYST — data analyst for SANDBOX.TPCH
+        ├── agent.yml          # Identity: name, fqn, database, schema, owner
+        ├── specs/
+        │   ├── README.md      # Spec versioning policy
+        │   └── v1/
+        │       ├── agent_spec.json   # Immutable versioned spec snapshot
+        │       └── metadata.yml      # Version, status, changelog
+        ├── prompts/
+        │   ├── orchestration.md      # System prompt: scope, tool rules, safety
+        │   └── response.md           # Output formatting rules
+        ├── evals/
+        │   ├── eval_config.yaml      # Judge model, thresholds, connection, result table
+        │   ├── ground_truth.json     # Q&A pairs for LLM-as-judge scoring
+        │   └── results/              # Eval run outputs (gitignored)
+        └── monitoring/
+            ├── usage_queries.sql     # Invocation, latency, credit, error queries
+            └── alert_policy.yml      # Alert thresholds and Snowflake Alert DDL
 ```
 
 ## Prerequisites
 
 ```bash
-pip install snowflake-cli pyyaml
-```
-
-Configure your local Snowflake connection (see `config.toml.example` in the project root):
-
-```bash
+pip install snowflake-cli pyyaml snowflake-connector-python
 cp config.toml.example config.toml
-# Edit config.toml — add your PAT token under [connections.default]
+# Edit config.toml — add your PAT under [connections.default]
 ```
 
-## Quickstart — Deploy the Agent
+## Discovering Agents
 
 ```bash
-# Dry-run: inspect the SQL that will be sent to Snowflake
-python scripts/deploy_agent.py --dry-run
-
-# Deploy the current spec (v1) to SANDBOX.TPCH.TPCH_ANALYST
-python scripts/deploy_agent.py | snow sql -c default --stdin
-
-# Deploy a specific versioned spec
-python scripts/deploy_agent.py --spec-version v1 | snow sql -c default --stdin
+# List all agents discovered in agent/agents/
+python agent/deploy_all.py --list
+python agent/run_evals.py --list
 ```
 
-`deploy_agent.py` builds a `CREATE OR REPLACE AGENT` statement by merging `specs/v1/agent_spec.json` with the content of `prompts/orchestration.md` and `prompts/response.md`, then writes the SQL to stdout.
+## Deploying Agents
 
-## Editing Prompts
+```bash
+# Deploy all agents
+python agent/deploy_all.py -c default
 
-All prompt changes live in `agent/prompts/`.
+# Deploy a single agent
+python agent/deploy_all.py -c default --agent tpch-analyst
 
-| File | What to change |
-|------|---------------|
-| `orchestration.md` | Agent scope, tool call rules, safety guardrails, in/out-of-scope examples |
-| `response.md` | Output format, number formatting, length limits, tone |
+# Dry-run: inspect the SQL without executing
+python agent/deploy_all.py --dry-run -c default
+```
 
-After editing, redeploy with `deploy_agent.py` and run the eval suite to confirm no regressions.
-
-## Versioning the Agent Spec
-
-1. Copy `specs/v1/` to `specs/v2/`.
-2. Edit `specs/v2/agent_spec.json` with your changes (new tools, different model, updated tool_resources).
-3. Set `status: draft` in `specs/v2/metadata.yml` and document changes in its `changelog` field.
-4. Run evals against the new version (see below).
-5. If evals pass, set `status: stable` and open a PR.
-6. After merge, CI deploys via `deploy_agent.py --spec-version v2`.
-
-Never edit a released spec in-place — always create a new version directory.
+Internally, `deploy_all.py` calls `scripts/deploy_agent.py --agent <name>` per agent, which merges the spec JSON with `prompts/orchestration.md` and `prompts/response.md` into a `CREATE OR REPLACE AGENT` statement.
 
 ## Running Evaluations
 
-Evals use `SNOWFLAKE.CORTEX.AI_JUDGE` to score agent responses against ground-truth question/answer pairs.
-
 ```bash
-pip install snowflake-connector-python pyyaml
+# Run evals for a specific agent
+python agent/run_evals.py --agent tpch-analyst
 
-# Run the full suite against the currently deployed agent
-python agent/evals/run_evals.py
+# Run evals for ALL agents
+python agent/run_evals.py --all
 
-# Run against a specific spec version (pre-deploy testing)
-python agent/evals/run_evals.py --spec-version v2
+# Run a single question by ID
+python agent/run_evals.py --agent tpch-analyst --question-id GT-001
 
-# Dry-run: validate config and ground truth file without calling Snowflake
-python agent/evals/run_evals.py --dry-run
+# Run a question category
+python agent/run_evals.py --agent tpch-analyst --category ranking
+
+# Dry-run: validate config + ground truth without calling Snowflake
+python agent/run_evals.py --agent tpch-analyst --dry-run
 ```
 
-### Pass/fail thresholds (defined in `eval_config.yaml`)
+## Adding a New Agent
 
-| Criterion | Threshold |
-|-----------|-----------|
-| Overall weighted score | ≥ 0.80 |
-| Any single question | ≥ 0.60 |
-| Tool call accuracy | 1.00 (all questions must call the expected tool) |
+1. Create a folder under `agent/agents/`:
 
-Results are written to `agent/evals/results/` locally and to `SANDBOX.TPCH.AGENT_EVAL_RESULTS` in Snowflake.
+   ```bash
+   mkdir -p agent/agents/my-agent/specs/v1 agent/agents/my-agent/prompts agent/agents/my-agent/evals/results agent/agents/my-agent/monitoring
+   ```
 
-## Adding Ground Truth Questions
+2. Create the required files:
 
-Edit `agent/evals/ground_truth.json`. Each entry requires:
+   **`agent.yml`** — identity config:
+   ```yaml
+   name: MY_AGENT
+   fqn: SANDBOX.TPCH.MY_AGENT
+   database: SANDBOX
+   schema: TPCH
+   description: "What this agent does."
+   owner: your-team
+   ```
 
-```json
-{
-  "question": "Who are the top 5 customers by revenue this quarter?",
-  "expected_tool": "query_customer_orders",
-  "reference_answer": "The top 5 customers by revenue are ..."
-}
-```
+   **`specs/v1/agent_spec.json`** — spec (tools, model, tool_resources):
+   ```json
+   {
+     "models": { "orchestration": "auto" },
+     "instructions": {},
+     "tools": []
+   }
+   ```
 
-Keep questions representative of real user queries. Aim for at least 10 entries covering happy-path, edge case, and out-of-scope rejections.
+   **`specs/v1/metadata.yml`** — version info:
+   ```yaml
+   version: "1.0.0"
+   status: "draft"
+   agent_name: "MY_AGENT"
+   fqn: "SANDBOX.TPCH.MY_AGENT"
+   changelog:
+     - "Initial spec"
+   ```
 
-## Monitoring
+   **`prompts/orchestration.md`** and **`prompts/response.md`** — system prompts.
 
-Operational SQL queries are in `agent/monitoring/usage_queries.sql`. Run them manually in Snowsight or wire them into a Snowflake Task for automated alerting.
+   **`evals/eval_config.yaml`** — copy from `tpch-analyst/evals/eval_config.yaml` and update `agent.fqn`, `results.output_dir`, and `results.table`.
 
-Alert thresholds and escalation contacts are in `agent/monitoring/alert_policy.yml`. Update this file when ownership or SLOs change.
+   **`evals/ground_truth.json`** — at least 6 Q&A pairs.
+
+3. Deploy and validate:
+   ```bash
+   python agent/deploy_all.py --dry-run --agent my-agent
+   python agent/run_evals.py --agent my-agent --dry-run
+   ```
+
+The new agent is automatically picked up by CI on the next push to `main`.
+
+## Versioning a Spec
+
+1. Copy `specs/v1/` → `specs/v2/`, modify `agent_spec.json`.
+2. Set `status: draft` in `metadata.yml` and add a changelog entry.
+3. Test: `python agent/deploy_all.py --dry-run --agent <name>`
+4. Open a PR — CI validates all agents automatically.
+5. After merge, CI deploys all agents including the new version.
+
+`scripts/deploy_agent.py` auto-selects the highest `vN` directory with an `agent_spec.json`. To pin a version: `--spec-version v1`.
 
 ## CI/CD
 
 | Workflow | Trigger | What runs |
 |----------|---------|-----------|
-| `validate.yml` | PR to `main` | `validate_agent_spec.py`, `deploy_agent.py --dry-run`, `run_evals.py --dry-run` |
-| `deploy.yml` | Push to `main` | `deploy_agent.py` piped to `snow sql`, then full `run_evals.py` suite |
+| `validate.yml` | PR to `main` | Required file checks, deploy dry-run for all agents, eval dry-run for all agents |
+| `deploy.yml` | Push to `main` | `deploy_all.py` deploys all agents, `run_evals.py --all` runs all eval suites |
