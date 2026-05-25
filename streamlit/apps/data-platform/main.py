@@ -1,12 +1,16 @@
+import sys
+import pathlib
+
+sys.path.append(str(pathlib.Path(__file__).parents[2]))
+
 import streamlit as st
-from snowflake.snowpark.context import get_active_session
+from shared.utils import get_session, fmt_currency, fmt_number
 
 st.set_page_config(page_title="Data Platform", layout="wide")
 st.title("Data Platform Dashboard")
 
-session = get_active_session()
+session = get_session()
 
-# Customer order summary
 st.header("Customer Order Summary")
 
 df = session.sql("""
@@ -22,8 +26,8 @@ df = session.sql("""
 """).to_pandas()
 
 col1, col2, col3 = st.columns(3)
-col1.metric("Total Customers", len(df))
-col2.metric("Total Orders", int(df["TOTAL_ORDERS"].sum()))
-col3.metric("Total Revenue", f"${df['LIFETIME_VALUE'].sum():,.2f}")
+col1.metric("Total Customers", fmt_number(len(df)))
+col2.metric("Total Orders",    fmt_number(df["TOTAL_ORDERS"].sum()))
+col3.metric("Total Revenue",   fmt_currency(df["LIFETIME_VALUE"].sum()))
 
 st.dataframe(df, use_container_width=True)

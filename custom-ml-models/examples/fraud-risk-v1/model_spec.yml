@@ -1,0 +1,46 @@
+model:
+  name: "fraud_risk"
+  version: "v1.0.0"
+  owner: "ml-fraud-team"
+  risk_tier: "high"
+  domain: "payments"
+
+objective:
+  prediction_target: "fraudulent_transaction"
+  business_goal: "Reduce fraud loss while minimizing false positive customer friction."
+  decision_frequency: "realtime"
+
+data_contract:
+  source_tables:
+    - "ANALYTICS.PAYMENTS.TRANSACTIONS_ENRICHED"
+    - "ANALYTICS.PAYMENTS.ACCOUNT_BEHAVIOR_DAILY"
+  feature_contract_version: "fraud_features_v5"
+  training_window: "2025-04-01 to 2026-03-31"
+  sensitive_attributes:
+    - "country_code"
+    - "merchant_category"
+
+training:
+  algorithm: "xgboost_classifier"
+  hyperparameters:
+    max_depth: 8
+    learning_rate: 0.03
+    n_estimators: 600
+    min_child_weight: 3
+  validation_strategy: "time_based_holdout_with_backtest"
+  reproducibility_seed: 1337
+
+acceptance_criteria:
+  primary_metric: "auc_pr"
+  minimum_primary_metric: 0.72
+  max_p95_latency_ms: 300
+  max_drift_score: 0.08
+
+deployment:
+  target_environment: "staging"
+  canary_traffic_percent: 5
+  dual_control_required: true
+  rollback_trigger:
+    - "auc_pr_below_0_70_in_shadow_validation"
+    - "p95_latency_above_350_for_2_windows"
+    - "drift_score_above_0_10"

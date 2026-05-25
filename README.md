@@ -1,30 +1,51 @@
-# snowflake-project
+# Snowflake Account Operations Platform
 
-Enterprise-grade Snowflake data platform — DCM, Cortex Agent lifecycle, Openflow ingestion pipeline, and dbt transforms.
+> A unified engineering platform for managing a production Snowflake account across three operational disciplines: **DataOps**, **MLOps**, and **AgentOps**.
 
-## Snowflake Connection
+This repository is the single source of truth for all Snowflake infrastructure, data pipelines, ML model lifecycle, AI agent operations, and observability dashboards. Every object, model, and agent that runs in the account is declared, versioned, tested, and deployed from here.
+
+---
+
+## Platform Pillars
+
+| Pillar | Scope | Key Components |
+|--------|-------|---------------|
+| **DataOps** | Infrastructure, ingestion, and transformation | DCM (declarative objects), Snowflake Openflow, Snowflake Task DAG, dbt |
+| **MLOps** | Custom ML model lifecycle | Model registry, lineage, monitoring, governance, deployment controls |
+| **AgentOps** | AI agent operations | Cortex Agent lifecycle, LLM evaluation, prompt versioning, usage observability |
+| **Dashboards** | Operational visibility | Multi-app Streamlit in Snowflake (SiS) |
+
+> **On AgentOps**: the term describes the operational discipline of managing AI agent lifecycles in production — covering spec versioning, deployment, LLM-as-judge evaluation, prompt governance, and usage monitoring. It is distinct from AIOps (AI for IT infrastructure operations) and LLMOps (base model training and fine-tuning). AgentOps is the right label here because the unit being operated is a deployed Snowflake Cortex Agent, not an ML model or an IT system.
+
+---
+
+## Snowflake Account
 
 | Setting | Value |
 |---------|-------|
 | Account | `xna38553.east-us-2.azure` |
-| Full host | `xna38553.east-us-2.azure.snowflakecomputing.com` |
-| User | `MCP_SERVICE_USER` |
+| Host | `xna38553.east-us-2.azure.snowflakecomputing.com` |
 | Auth | Programmatic Access Token (PAT) |
-| Database | `SANDBOX` |
-| Schema | `TPCH` / `TPCH_LANDING` |
+| Primary database | `SANDBOX` |
+| Primary schema | `TPCH` / `TPCH_LANDING` |
+| ML databases | `ML_DEV` / `ML_STAGING` / `ML_PROD` |
 | Warehouse | `ANALYTICS_WH` |
-| Role | `SYSADMIN` |
+| Service user | `MCP_SERVICE_USER` |
+| Default role | `SYSADMIN` |
 
 ### Local Setup
 
 ```bash
-# 1. Copy the connection template
+# 1. Install the Snowflake CLI
+pip install snowflake-cli
+
+# 2. Copy the connection template and fill in your PAT
 cp config.toml.example config.toml
+# Edit config.toml — generate/rotate PATs in Snowsight:
+#   Admin → Security → Programmatic Access Tokens
+# NEVER commit config.toml — it is gitignored.
 
-# 2. Paste your PAT into config.toml — NEVER commit this file (it is gitignored)
-#    Generate/rotate PATs in Snowsight: Admin → Security → Programmatic Access Tokens
-
-# 3. Verify the connection
+# 3. Verify connectivity
 snow connection test -c default
 ```
 
@@ -34,329 +55,377 @@ snow connection test -c default
 
 ```
 snowflake-project/
-├── config.toml.example      # Connection template (copy → config.toml, fill PAT)
-├── manifest.yml             # DCM project config (DEV / PROD targets)
-├── sources/                 # DCM declarative object definitions
+│
+├── config.toml.example          # Connection template — copy to config.toml
+├── manifest.yml                 # DCM project config (DEV / CI / PROD targets)
+│
+├── sources/                     # ── DataOps: Declarative infrastructure ──
 │   └── definitions/
-│       ├── infrastructure.sql  # Warehouse
-│       ├── tables.sql          # CUSTOMERS, ORDERS
-│       ├── views.sql           # CUSTOMER_ORDER_SUMMARY
-│       └── access.sql          # Roles + grants
-├── agent/                   # Cortex Agent — enterprise lifecycle
-│   ├── specs/               # Versioned agent specs
-│   │   └── v1/              # agent_spec.json + metadata.yml
-│   ├── evals/               # LLM-as-judge evaluation suite
-│   │   ├── eval_config.yaml
-│   │   ├── ground_truth.json
-│   │   ├── run_evals.py
-│   │   └── results/         # Eval run outputs (gitignored)
-│   ├── prompts/             # Versioned prompt files
-│   │   ├── orchestration.md
-│   │   └── response.md
-│   ├── monitoring/          # Operational observability
-│   │   ├── usage_queries.sql
-│   │   └── alert_policy.yml
-│   ├── agent_spec.json      # Current canonical spec
-│   └── instructions.md      # Legacy (superseded by prompts/)
-├── ingestion/               # Data ingestion pipeline
-│   ├── openflow/            # Snowflake Openflow (NiFi-based, SPCS-hosted)
-│   │   ├── setup/           # Compute pool, roles, EAIs (run once by admin)
-│   │   ├── flows/           # nipyapi flow definitions (Python)
-│   │   └── connectors/      # S3 connector parameter reference
-│   ├── snowflake/           # Native Snowflake objects
-│   │   ├── stages.sql       # External S3 stages + file formats
-│   │   ├── streams.sql      # CDC streams + landing tables
-│   │   └── tasks.sql        # Snowflake Task DAG (post-Openflow processing)
-│   ├── snowpark/            # Complex transforms as stored procedures
-│   └── config/              # Pipeline configuration YAML
-├── dbt/                     # dbt transform project
-│   ├── models/staging/      # Source-aligned views
-│   ├── models/intermediate/ # Ephemeral joins
-│   ├── models/marts/        # Incremental fact tables (Cortex Agent + BI)
-│   ├── snapshots/           # Type-2 SCD snapshots
-│   ├── macros/              # Schema naming, Snowflake utils
-│   ├── tests/generic/       # Custom generic tests
-│   └── profiles.yml.example # dbt profile template
-├── streamlit/               # Streamlit in Snowflake dashboard
-├── scripts/                 # Deploy + validate scripts
-└── .github/workflows/       # CI/CD
-    ├── validate.yml          # PR checks (auto on every PR → main)
-    └── deploy.yml            # Deploy pipeline (auto on main → PROD, manual on any branch → DEV/PROD)
+│       ├── infrastructure.sql   # DEFINE WAREHOUSE (size, suspend policy)
+│       ├── tables.sql           # DEFINE TABLE — CUSTOMERS, ORDERS
+│       ├── views.sql            # DEFINE VIEW  — CUSTOMER_ORDER_SUMMARY
+│       └── access.sql           # DEFINE ROLE + GRANT — DATA_READER
+│
+├── ingestion/                   # ── DataOps: Ingestion pipeline ──
+│   ├── openflow/                # Snowflake Openflow (NiFi-based, SPCS-hosted)
+│   │   ├── setup/               # Compute pool, roles, EAIs (one-time admin)
+│   │   ├── flows/               # nipyapi flow definitions (Python)
+│   │   └── connectors/          # S3 connector config reference
+│   ├── snowflake/               # Native Snowflake objects
+│   │   ├── stages.sql           # External S3 stages + file formats
+│   │   ├── streams.sql          # CDC streams + TPCH_LANDING tables
+│   │   └── tasks.sql            # Task DAG: MERGE → LOAD → REFRESH
+│   ├── snowpark/                # Complex transforms as stored procedures
+│   └── config/                  # Pipeline config YAML
+│
+├── dbt/                         # ── DataOps: Transform layer ──
+│   ├── models/staging/          # Source-aligned views (1:1 with raw tables)
+│   ├── models/intermediate/     # Ephemeral joins (never queried directly)
+│   ├── models/marts/            # Incremental fact tables (Cortex Agent + BI)
+│   ├── snapshots/               # Type-2 SCD on customers
+│   ├── macros/                  # Schema naming, Snowflake-specific helpers
+│   ├── tests/generic/           # Custom reusable data quality tests
+│   └── profiles.yml.example     # dbt profile template
+│
+├── custom-ml-models/            # ── MLOps: Custom model lifecycle ──
+│   ├── OPERATING_MODEL.md       # Lifecycle stages, roles, gates, control policies
+│   ├── lifecycle/checklist.md   # Per-model stage-by-stage delivery checklist
+│   ├── environments/            # dev.yml / staging.yml / prod.yml — SLO thresholds
+│   ├── snowflake/sql/           # Foundation SQL: registry, lineage, monitoring
+│   ├── templates/               # model_spec_template.yml + model_card_template.md
+│   ├── runbooks/                # Release and incident/rollback procedures
+│   └── examples/
+│       ├── churn-risk-v1/       # Medium-risk worked example
+│       └── fraud-risk-v1/       # High-risk, dual-approval worked example
+│
+├── agent/                       # ── AgentOps: Cortex Agent lifecycle ──
+│   ├── specs/v1/                # Versioned agent spec + metadata/changelog
+│   ├── prompts/                 # orchestration.md + response.md
+│   ├── evals/                   # LLM-as-judge eval suite (AI_JUDGE)
+│   └── monitoring/              # Usage SQL + alert policy
+│
+├── streamlit/                   # ── Dashboards: Multi-app Streamlit in Snowflake ──
+│   ├── deploy_all.py            # Deploy one or all apps via Snowflake CLI
+│   ├── shared/utils.py          # Shared session helper + formatting functions
+│   └── apps/
+│       ├── data-platform/       # Customer order KPI dashboard
+│       └── ml-monitor/          # ML model health and deployment tracker
+│
+├── scripts/                     # Project automation scripts
+│   ├── deploy_agent.py          # Build + emit CREATE AGENT SQL
+│   ├── validate_agent_spec.py   # Validate agent spec schema
+│   └── check_naming.py          # Enforce UPPER_SNAKE_CASE convention
+│
+└── .github/workflows/
+    ├── validate.yml             # PR gate: analysis, dry-runs, syntax, security
+    └── deploy.yml               # Release pipeline: DEV clone or PROD deploy
 ```
 
 ---
 
-## Component Overview
+## DataOps
 
-### DCM (Declarative Change Management)
+DataOps covers all infrastructure management, data ingestion, and transformations in this account.
 
-Manages Snowflake infrastructure objects declaratively — warehouse, tables, views, roles/grants.
-Supports three targets in `manifest.yml` with Jinja templating (`env_suffix`, `wh_size`):
+### Declarative Infrastructure (DCM)
 
-| Target | Database | Used by |
-|--------|----------|---------|
+Snowflake objects are managed as code in `sources/definitions/` using `DEFINE` statements. DCM computes a diff and applies only what changed.
+
+| DCM Target | Database | Used for |
+|------------|----------|---------|
 | `DEV` | `SANDBOX` | Local development |
-| `CI` | `SANDBOX_<BRANCH>` | Branch pipeline (placeholder `SANDBOX_CI` replaced by `sed` at runtime) |
-| `PROD` | `SANDBOX` | Main branch auto-deploy |
+| `CI` | `SANDBOX_<BRANCH>` | Branch pipeline (zero-copy clone, auto-cleaned) |
+| `PROD` | `SANDBOX` | Production — auto-deployed on merge to `main` |
 
 ```bash
-# Local dev
-snow dcm plan --target DEV -c dev
-snow dcm deploy --target DEV -c dev --alias "local-test"
+# Preview changes before applying
+snow dcm plan --target DEV -c default
 
-# Production (CI handles this automatically on merge to main)
-snow dcm deploy --target PROD -c prod --alias "gh-<sha>"
+# Apply to dev
+snow dcm deploy --target DEV -c default --alias "my-change"
 ```
 
----
+### Ingestion Pipeline
 
-### Cortex Agent — Enterprise Lifecycle
-
-Agent: `SANDBOX.TPCH.TPCH_ANALYST`
-
-| Component | Path | Purpose |
-|-----------|------|---------|
-| Spec versioning | `agent/specs/v1/` | Immutable snapshots; `metadata.yml` tracks changelog and status |
-| Evals | `agent/evals/` | Ground-truth Q&A pairs scored by `SNOWFLAKE.CORTEX.AI_JUDGE` |
-| Prompts | `agent/prompts/` | Versioned orchestration + response formatting prompts |
-| Monitoring | `agent/monitoring/` | Usage SQL (invocations, latency, credits) + Snowflake Alert DDL |
-
-```bash
-# Deploy agent (picks up prompts/ automatically)
-python scripts/deploy_agent.py | snow sql -c prod --stdin
-
-# Deploy a specific versioned spec
-python scripts/deploy_agent.py --spec-version v2 | snow sql -c prod --stdin
-
-# Run evaluations (set SNOWFLAKE_PAT env var first)
-python agent/evals/run_evals.py
-python agent/evals/run_evals.py --question-id GT-001
-python agent/evals/run_evals.py --category ranking
-python agent/evals/run_evals.py --dry-run
-```
-
-#### Promoting a new agent version
-
-1. Create `agent/specs/vN/agent_spec.json` + `metadata.yml`
-2. Run `python agent/evals/run_evals.py --dry-run` to validate
-3. Open a PR — CI runs the full eval dry-run automatically
-4. After merge, CI deploys with `--spec-version vN`
-
----
-
-### Ingestion Pipeline (Snowflake Openflow + Task DAG)
-
-**Snowflake Openflow** is Snowflake's native integration service built on Apache NiFi,
-running inside Snowpark Container Services (SPCS). It is managed entirely within Snowflake —
-no external orchestrator required.
+Data flows from S3 through Snowflake Openflow into landing tables, then through a native Task DAG into production tables.
 
 ```
 S3 Bucket
     │
     ▼
-[Snowflake Openflow — SPCS runtime]
-  ListS3 → FetchS3Object → ConvertRecord → UpdateRecord
-        → PutSnowflakeStreaming → TPCH_LANDING.{CUSTOMERS,ORDERS}_RAW
-  [failure] → RetryFlowFile (3 retries) → DLQ table
+[Snowflake Openflow — SPCS/NiFi runtime]
+  ListS3 → FetchS3 → ConvertRecord → PutSnowflakeStreaming
+                                    → TPCH_LANDING.{CUSTOMERS,ORDERS}_RAW
+  [failure] → RetryFlowFile (3×) → DLQ table
     │
-    ▼  (Streams pick up new rows automatically)
+    ▼  (Streams on landing tables trigger automatically)
 [Snowflake Task DAG]
-  MERGE_CUSTOMERS + LOAD_ORDERS (parallel, stream-guarded)
+  MERGE_CUSTOMERS + LOAD_ORDERS  (parallel, stream-guarded)
         → REFRESH_SUMMARY
     │
     ▼
-SANDBOX.TPCH.{CUSTOMERS, ORDERS} → dbt mart → fct_customer_orders
+SANDBOX.TPCH.{CUSTOMERS, ORDERS}
 ```
 
-#### One-time admin setup
+For full setup instructions see [`ingestion/README.md`](ingestion/README.md).
+
+### dbt Transform Layer
+
+```
+CUSTOMERS + ORDERS (sources)
+    → stg_customers + stg_orders    (staging: views)
+    → int_customer_orders           (intermediate: ephemeral)
+    → fct_customer_orders           (mart: incremental MERGE, clustered)
+         ├── Cortex Agent (semantic view)
+         └── Streamlit dashboards
+```
 
 ```bash
-# 1. Compute pool + roles + EAIs (run as ACCOUNTADMIN)
-snow sql -f ingestion/openflow/setup/01_compute_pool.sql -c prod
-snow sql -f ingestion/openflow/setup/02_roles_and_grants.sql -c prod
-snow sql -f ingestion/openflow/setup/03_external_access.sql -c prod
-
-# 2. Create Openflow deployment + runtime in Snowsight:
-#    Data → Openflow → Create Deployment → Openflow - Snowflake
-#    Compute pool: TPCH_OPENFLOW_POOL | Runtime role: DATA_PLATFORM_OPENFLOW
-
-# 3. Deploy landing tables, streams, and task DAG
-snow sql -f ingestion/snowflake/stages.sql  -c prod
-snow sql -f ingestion/snowflake/streams.sql -c prod
-snow sql -f ingestion/snowflake/tasks.sql   -c prod
-
-# 4. Resume the task DAG (resume leaf tasks first, root last)
-snow sql -q "ALTER TASK SANDBOX.TPCH.REFRESH_SUMMARY_TASK RESUME;"   -c prod
-snow sql -q "ALTER TASK SANDBOX.TPCH.LOAD_ORDERS_TASK RESUME;"       -c prod
-snow sql -q "ALTER TASK SANDBOX.TPCH.MERGE_CUSTOMERS_TASK RESUME;"   -c prod
-snow sql -q "ALTER TASK SANDBOX.TPCH.PIPELINE_ROOT_TASK RESUME;"     -c prod
+cd dbt && dbt deps && dbt run && dbt test
 ```
 
-#### Deploy Openflow flows (programmatic via nipyapi)
-
-```bash
-pip install -r ingestion/openflow/requirements.txt
-
-export OPENFLOW_RUNTIME_URL=https://<runtime-id>.snowflakecomputing.com/nifi
-export S3_BUCKET=your-data-bucket
-
-python ingestion/openflow/flows/deploy_all_flows.py
-python ingestion/openflow/flows/deploy_all_flows.py --dry-run  # inspect flow config
-```
-
-#### Deploy Snowpark stored procedures
-
-```bash
-export SNOWFLAKE_PAT=<your-pat>
-python ingestion/snowpark/transforms.py
-```
+For the full model reference see [`dbt/README.md`](dbt/README.md).
 
 ---
 
-### dbt — Transform Layer
+## MLOps
 
-| Package | Purpose |
-|---------|---------|
-| `dbt_utils` | `generate_surrogate_key`, `date_spine`, cross-db macros |
-| `dbt_expectations` | Range checks, regex tests, row count assertions |
-| `audit_helper` | Row count and value comparison across runs |
-| `codegen` | Auto-generate source YAML from Snowflake schema |
-| `elementary` | Data observability — anomaly detection, schema changes |
+`custom-ml-models/` is the production-grade lifecycle directory for custom ML models deployed in Snowflake. It covers the full journey from intake to retirement.
+
+### Lifecycle Stages
+
+```
+Intake → Build → Qualify → Register → Deploy → Monitor → Retrain → Retire
+```
+
+Each stage has defined gates, approvals, and evidence requirements in [`custom-ml-models/OPERATING_MODEL.md`](custom-ml-models/OPERATING_MODEL.md).
+
+### Snowflake MLOps Foundation
+
+Three SQL scripts establish the MLOps schema in `ML_{ENV}.MLOPS`:
+
+| Script | Objects created |
+|--------|----------------|
+| `001_setup_mlops_foundation.sql` | `MODEL_REGISTRY`, `MODEL_DEPLOYMENT_EVENTS` |
+| `002_model_registry_and_lineage.sql` | `MODEL_LINEAGE`, `MODEL_APPROVALS`, `V_ACTIVE_MODELS` |
+| `003_monitoring_views_and_alerts.sql` | `MODEL_PREDICTION_LOG`, `V_MODEL_HEALTH_DAILY` |
 
 ```bash
-# Setup (copy profile template and set PAT)
-cp dbt/profiles.yml.example ~/.dbt/profiles.yml
-export SNOWFLAKE_PAT=<your-pat>
-
-cd dbt
-dbt deps             # Install packages
-dbt debug            # Test connection
-dbt source freshness # Check source data recency
-dbt run              # Run all models
-dbt test             # Run all tests
-dbt snapshot         # Run Type-2 SCD snapshots
+# Apply foundation (one-time per environment)
+snow sql -f custom-ml-models/snowflake/sql/001_setup_mlops_foundation.sql -c default
+snow sql -f custom-ml-models/snowflake/sql/002_model_registry_and_lineage.sql -c default
+snow sql -f custom-ml-models/snowflake/sql/003_monitoring_views_and_alerts.sql -c default
 ```
 
-**Data lineage:**
+CI deploys these automatically via the `deploy-ml-models` job on every push to `main`.
+
+### Risk Tiers
+
+| Tier | Dual approval in prod | Human-in-the-loop | Canary traffic |
+|------|----------------------|-------------------|----------------|
+| `low` | No | No | 10% |
+| `medium` | No | Recommended | 10% |
+| `high` | Yes (2 reviewers) | Required | 5% |
+
+### Adding a New Model
+
+```bash
+# 1. Create model folder from templates
+mkdir -p custom-ml-models/my-model-v1/snowflake/sql
+cp custom-ml-models/templates/model_spec_template.yml  custom-ml-models/my-model-v1/model_spec.yml
+cp custom-ml-models/templates/model_card_template.md   custom-ml-models/my-model-v1/model_card.md
+
+# 2. Fill in spec and card, then validate locally
+# spec must pass validate-ml-models in CI before PR merge
+
+# 3. Register version in Snowflake after training
+snow sql -f custom-ml-models/my-model-v1/snowflake/sql/001_register_model.sql -c default
 ```
-CUSTOMERS (source) + ORDERS (source)
-    → stg_customers + stg_orders          (staging: views)
-    → int_customer_orders                  (intermediate: ephemeral)
-    → fct_customer_orders                  (mart: incremental MERGE, clustered)
-         ├── Cortex Agent (semantic view)
-         └── Streamlit dashboard
+
+See the worked examples in [`custom-ml-models/examples/`](custom-ml-models/examples/) — `churn-risk-v1` (medium-risk) and `fraud-risk-v1` (high-risk, dual-control).
+
+For the full developer guide see [`custom-ml-models/README.md`](custom-ml-models/README.md).
+
+---
+
+## AgentOps
+
+`agent/` owns the complete operational lifecycle of the `TPCH_ANALYST` Cortex Agent — the AI-powered data analyst scoped to `SANDBOX.TPCH`.
+
+### Agent Coordinates
+
+| Property | Value |
+|----------|-------|
+| Fully-qualified name | `SANDBOX.TPCH.TPCH_ANALYST` |
+| Current spec | `agent/specs/v1/agent_spec.json` |
+| Eval judge | `SNOWFLAKE.CORTEX.AI_JUDGE` (llama3.1-70b) |
+| Eval pass threshold | Overall ≥ 0.80, per-question ≥ 0.60, tool accuracy 1.00 |
+
+### Deploying the Agent
+
+```bash
+# Dry-run: inspect the generated SQL
+python scripts/deploy_agent.py --dry-run
+
+# Deploy current spec
+python scripts/deploy_agent.py | snow sql -c default --stdin
+
+# Deploy a specific versioned spec
+python scripts/deploy_agent.py --spec-version v2 | snow sql -c default --stdin
 ```
+
+### Running Evaluations
+
+```bash
+# Full eval suite against the live agent
+python agent/evals/run_evals.py
+
+# Test a spec version before deploying
+python agent/evals/run_evals.py --spec-version v2
+
+# Dry-run (no Snowflake calls — validates config and ground truth)
+python agent/evals/run_evals.py --dry-run
+```
+
+### Promoting a New Agent Version
+
+1. Copy `agent/specs/v1/` → `agent/specs/v2/` and modify `agent_spec.json`.
+2. Set `status: draft` in `metadata.yml` and document the changelog.
+3. Run `python agent/evals/run_evals.py --dry-run` locally.
+4. Open a PR — CI runs full eval dry-run automatically.
+5. After merge, CI deploys with `--spec-version v2`.
+
+For the full developer guide see [`agent/README.md`](agent/README.md).
+
+---
+
+## Dashboards (Streamlit in Snowflake)
+
+`streamlit/apps/` hosts multiple independently deployable SiS applications backed by a shared utilities layer.
+
+| App | Snowflake name | Description |
+|-----|---------------|-------------|
+| `data-platform` | `SANDBOX.TPCH.DATA_PLATFORM_APP` | Customer order KPIs — total revenue, orders, top customers |
+| `ml-monitor` | `SANDBOX.TPCH.ML_MONITOR_APP` | Active models, 7-day health metrics, deployment events |
+
+```bash
+# Deploy all apps
+python streamlit/deploy_all.py -c default
+
+# Deploy a single app
+python streamlit/deploy_all.py -c default --app data-platform
+
+# Add a new app: drop a folder in streamlit/apps/ with main.py,
+# snowflake.yml, and environment.yml — deploy_all.py discovers it automatically.
+```
+
+For the full developer guide see [`streamlit/README.md`](streamlit/README.md).
 
 ---
 
 ## CI/CD Pipeline
 
-### PR Validation (`.github/workflows/validate.yml`)
+### PR Validation (`validate.yml`)
 
-Triggers automatically on every pull request targeting `main`.
+Triggers on every pull request to `main`. All jobs run in parallel.
 
-| Job | What it checks |
-|-----|---------------|
-| `validate-dcm` | DCM analyze + plan against DEV target |
-| `validate-agent` | Spec JSON validation, deploy dry-run, eval dry-run |
-| `validate-dbt` | `dbt deps`, `dbt compile`, `dbt parse` |
-| `validate-ingestion` | Openflow flow Python syntax + dry-run config check |
-| `lint-naming` | UPPER_SNAKE_CASE on all DCM definition files |
-| `validate-streamlit` | Python AST syntax check |
-| `security-scan` | Bandit (Python) + Gitleaks (secrets) |
+| Job | Pillar | What it validates |
+|-----|--------|------------------|
+| `validate-dcm` | DataOps | DCM analyze + plan dry-run against DEV target |
+| `validate-ingestion` | DataOps | Openflow flow syntax + dry-run config check |
+| `validate-dbt` | DataOps | `dbt compile`, `dbt parse` |
+| `validate-ml-models` | MLOps | Model spec YAML fields, template syntax, SQL script presence |
+| `validate-agent` | AgentOps | Spec schema validation, deploy dry-run, eval dry-run |
+| `validate-streamlit` | Dashboards | AST syntax on all `apps/*/main.py`, required file presence |
+| `lint-naming` | All | UPPER_SNAKE_CASE enforcement on DCM definitions |
+| `security-scan` | All | Bandit (Python security) + Gitleaks (secret detection) |
 
-### Deploy (`.github/workflows/deploy.yml`)
+### Deploy (`deploy.yml`)
 
-#### Triggers
+| Trigger | Branch | Target |
+|---------|--------|--------|
+| Auto — push to `main` | `main` only | Always **PROD** |
+| Manual — `workflow_dispatch` | Any branch | **DEV** (default) or **PROD** |
 
-| How | When | Target |
-|-----|------|--------|
-| Automatic | Push to `main` | Always **PROD** |
-| Manual (`workflow_dispatch`) | Any branch, any time | **DEV** (default) or **PROD** |
+> Guard rail: dispatching `PROD` from any non-`main` branch fails immediately. Merge to `main` first.
 
-#### Running a test deploy on your branch
-
-```bash
-# 1. Push your branch first
-git push origin feature/advanced_devops
-```
-
-Then in GitHub:
-
-1. **Actions → Deploy → Run workflow**
-2. Branch: `feature/advanced_devops`
-3. Environment: `DEV` (default — never touches production)
-4. Skip evals: `false` (or `true` for a faster first run)
-5. Keep clone: `true` to inspect the branch database after the pipeline
-6. **Run workflow**
-
-> **Guard rail:** dispatching to `PROD` from any non-`main` branch fails immediately at the `guard` job. Merge to `main` first for production deploys.
-
-#### Branch clone database (DEV only)
-
-Every DEV deploy automatically creates a **Snowflake zero-copy clone** of `SANDBOX`. The clone name is derived from the branch name — slashes, hyphens, and dots become underscores, uppercased, truncated to 30 chars:
-
-```
-Branch: feature/advanced_devops
-Clone:  SANDBOX_FEATURE_ADVANCED_DEVOPS
-```
-
-All objects — DCM schema changes, ingestion SQL, dbt models, agent evals — deploy into the clone. Production (`SANDBOX`) is never touched. The clone is automatically dropped at the end of the pipeline unless `keep_clone = true`.
-
-To inspect a retained clone locally:
-```bash
-# Browse the clone
-snow sql -q "SHOW SCHEMAS IN DATABASE SANDBOX_FEATURE_ADVANCED_DEVOPS;" -c dev
-snow sql -q "SELECT * FROM SANDBOX_FEATURE_ADVANCED_DEVOPS.TPCH_DEV.FCT_CUSTOMER_ORDERS LIMIT 10;" -c dev
-
-# Drop manually when done
-snow sql -q "DROP DATABASE IF EXISTS SANDBOX_FEATURE_ADVANCED_DEVOPS;" -c dev
-```
-
-#### What each environment targets
-
-| Setting | DEV | PROD |
-|---------|-----|------|
-| Database | `SANDBOX_<BRANCH>` (clone) | `SANDBOX` |
-| DCM target | `CI` (patched to clone) | `PROD` |
-| dbt database | clone DB | `SANDBOX` |
-| dbt schema | `TPCH_DEV` | `TPCH` |
-| Source freshness failure | warn only | blocks pipeline |
-| Clone cleanup | auto-dropped (unless `keep_clone=true`) | n/a |
-
-#### Ordered pipeline
+#### Ordered Pipeline
 
 ```
 guard
-  └── clone-db  (DEV only: CREATE OR REPLACE DATABASE SANDBOX_<BRANCH> CLONE SANDBOX)
-        └── deploy-dcm  (CI target patched to clone / PROD target for main)
-              └── deploy-ingestion  (SQL repointed to clone on DEV)
-                      └── deploy-dbt  (dbt database = clone on DEV)
-                              ├── deploy-streamlit
-                              └── deploy-agent
-                                        └── run-agent-evals  (artifact uploaded, skippable)
-                                                  └── cleanup-clone  (DEV: drop clone, always runs)
+ └── clone-db          (DEV only — zero-copy clone: SANDBOX → SANDBOX_<BRANCH>)
+       └── deploy-dcm  (schema objects)
+             ├── deploy-ml-models   (MLOps SQL foundation: 001 → 002 → 003)
+             └── deploy-ingestion   (stages, streams, tasks, Openflow flows, Snowpark)
+                   └── deploy-dbt   (dbt run + test + snapshot)
+                         ├── deploy-streamlit  (all apps via deploy_all.py)
+                         └── deploy-agent
+                               └── run-agent-evals  (upload artifact; skippable)
+                                     └── cleanup-clone  (DEV: drop clone — always runs)
 ```
+
+#### Branch Clone Database (DEV only)
+
+Every DEV deploy creates a Snowflake **zero-copy clone** of `SANDBOX`. The clone name is derived from the branch name:
+
+```
+branch:  feature/my-model
+clone:   SANDBOX_FEATURE_MY_MODEL
+```
+
+All components deploy into the clone — production is never touched. The clone is auto-dropped at pipeline end unless `keep_clone = true`.
+
+```bash
+# Inspect a retained clone
+snow sql -q "SELECT * FROM SANDBOX_FEATURE_MY_MODEL.TPCH_DEV.FCT_CUSTOMER_ORDERS LIMIT 10;" -c dev
+
+# Drop manually
+snow sql -q "DROP DATABASE IF EXISTS SANDBOX_FEATURE_MY_MODEL;" -c dev
+```
+
+#### Environment Matrix
+
+| Setting | DEV | PROD |
+|---------|-----|------|
+| Snowflake database | `SANDBOX_<BRANCH>` (clone) | `SANDBOX` |
+| ML database | `ML_DEV` | `ML_PROD` |
+| DCM target | `CI` (patched to clone) | `PROD` |
+| dbt schema | `TPCH_DEV` | `TPCH` |
+| Source freshness failure | warn only | blocks pipeline |
+| Clone cleanup | auto-dropped | n/a |
+
+#### Manual Run Options (`workflow_dispatch`)
+
+| Input | Options | Default | Description |
+|-------|---------|---------|-------------|
+| `environment` | `DEV` / `PROD` | `DEV` | Target environment |
+| `skip_evals` | `true` / `false` | `false` | Skip agent eval suite for faster iteration |
+| `keep_clone` | `true` / `false` | `false` | Retain branch clone DB for post-deploy inspection |
 
 ---
 
 ## Required GitHub Secrets
 
-Set these in **GitHub repo → Settings → Secrets and variables → Actions**:
+Set in **GitHub → Settings → Secrets and variables → Actions**:
 
-| Secret | Value / Description |
-|--------|---------------------|
+| Secret | Description |
+|--------|-------------|
 | `SNOWFLAKE_PAT` | Snowflake Programmatic Access Token — rotate in Snowsight after each use |
-| `OPENFLOW_RUNTIME_URL` | Openflow SPCS runtime URL (available after Step 2 of ingestion setup) |
+| `OPENFLOW_RUNTIME_URL` | Openflow SPCS runtime URL (available after ingestion one-time setup) |
 | `S3_BUCKET` | Name of the S3 bucket hosting source CSV files |
 
-> Account (`xna38553.east-us-2.azure`) and user (`MCP_SERVICE_USER`) are hardcoded in the
-> workflow files as non-secret configuration. Only the PAT is a secret.
+---
 
-## `workflow_dispatch` Inputs (manual runs)
+## Folder READMEs
 
-| Input | Options | Default | Description |
-|-------|---------|---------|-------------|
-| `environment` | `DEV` / `PROD` | `DEV` | Target environment. PROD blocked on non-main branches. |
-| `skip_evals` | `true` / `false` | `false` | Skip the agent evaluation suite for faster iteration. |
-| `keep_clone` | `true` / `false` | `false` | Retain the branch clone DB after the pipeline for inspection. |
+Each directory has a developer-focused README with quickstart commands, structure reference, and CI/CD integration notes.
+
+| Folder | README | Covers |
+|--------|--------|--------|
+| `sources/` | [`sources/README.md`](sources/README.md) | DCM `DEFINE` syntax, object reference, change workflow |
+| `ingestion/` | [`ingestion/README.md`](ingestion/README.md) | Openflow setup, Task DAG, Snowpark deployment |
+| `dbt/` | [`dbt/README.md`](dbt/README.md) | Model layers, packages, lineage, dbt commands |
+| `custom-ml-models/` | [`custom-ml-models/README.md`](custom-ml-models/README.md) | Full lifecycle quickstart, risk tiers, monitoring queries |
+| `agent/` | [`agent/README.md`](agent/README.md) | Spec versioning, prompts, eval suite, monitoring |
+| `streamlit/` | [`streamlit/README.md`](streamlit/README.md) | Multi-app layout, local dev, adding pages and new apps |
+| `scripts/` | [`scripts/README.md`](scripts/README.md) | Per-script usage reference, pre-PR checklist |

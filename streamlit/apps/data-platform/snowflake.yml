@@ -8,6 +8,7 @@ entities:
       database: SANDBOX
     title: "Data Platform Dashboard"
     query_warehouse: COMPUTE_WH
-    main_file: streamlit_app.py
+    main_file: main.py
     pages_dir: pages/
-    additional_source_files: []
+    additional_source_files:
+      - ../../shared/utils.py

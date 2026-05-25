@@ -68,8 +68,56 @@ jobs:
       - name: Install dependencies
         run: pip install streamlit
 
-      - name: Check Streamlit app syntax
-        run: python -c "import ast; ast.parse(open('streamlit/streamlit_app.py').read())"
+      - name: Check syntax of all Streamlit app entry points
+        run: |
+          python - <<'EOF'
+          import ast, pathlib, sys
+
+          apps_dir = pathlib.Path("streamlit/apps")
+          mains = sorted(apps_dir.glob("*/main.py"))
+
+          if not mains:
+              print("No main.py files found in streamlit/apps/.")
+              sys.exit(1)
+
+          errors = []
+          for path in mains:
+              try:
+                  ast.parse(path.read_text())
+                  print(f"OK: {path}")
+              except SyntaxError as e:
+                  errors.append(f"SYNTAX ERROR in {path}: {e}")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"\nAll {len(mains)} app(s) passed syntax check.")
+          EOF
+
+      - name: Check shared utils syntax
+        run: python -c "import ast; ast.parse(open('streamlit/shared/utils.py').read())"
+
+      - name: Verify each app has snowflake.yml and environment.yml
+        run: |
+          python - <<'EOF'
+          import pathlib, sys
+
+          apps_dir = pathlib.Path("streamlit/apps")
+          errors = []
+          for app_dir in sorted(apps_dir.iterdir()):
+              if not app_dir.is_dir():
+                  continue
+              for required in ("snowflake.yml", "environment.yml", "main.py"):
+                  if not (app_dir / required).exists():
+                      errors.append(f"MISSING {required} in {app_dir.name}/")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"All apps have required files.")
+          EOF
 
   lint-naming:
     name: Naming Conventions
@@ -179,6 +227,113 @@ jobs:
       - name: Dry-run all flows (validates flow config structure)
         run: |
           python ingestion/openflow/flows/deploy_all_flows.py --dry-run
+
+  validate-ml-models:
+    name: ML Model Spec & SQL Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate model spec YAML files
+        run: |
+          python - <<'EOF'
+          import sys, yaml, pathlib, os
+
+          REQUIRED_TOP = {"model", "objective", "data_contract", "training", "acceptance_criteria", "deployment"}
+          REQUIRED_MODEL = {"name", "version", "owner", "risk_tier", "domain"}
+
+          specs = list(pathlib.Path("custom-ml-models").rglob("model_spec.yml"))
+          if not specs:
+              print("No model_spec.yml files found — nothing to validate.")
+              sys.exit(0)
+
+          errors = []
+          for path in specs:
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+              missing_top = REQUIRED_TOP - set(data.keys())
+              if missing_top:
+                  errors.append(f"{path}: missing top-level keys: {missing_top}")
+              missing_model = REQUIRED_MODEL - set(data.get("model", {}).keys())
+              if missing_model:
+                  errors.append(f"{path}: missing model fields: {missing_model}")
+              if str(data.get("model", {}).get("risk_tier", "")) not in {"low", "medium", "high"}:
+                  errors.append(f"{path}: model.risk_tier must be low, medium, or high")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"Validated {len(specs)} model spec(s) — all passed.")
+          EOF
+
+      - name: Validate template YAML files are parseable
+        run: |
+          python - <<'EOF'
+          import sys, yaml, pathlib
+
+          for path in pathlib.Path("custom-ml-models/templates").glob("*.yml"):
+              with open(path) as f:
+                  yaml.safe_load(f)
+              print(f"OK: {path}")
+
+          print("Template YAML files are valid.")
+          EOF
+
+      - name: Check SQL foundation scripts are present and non-empty
+        run: |
+          python - <<'EOF'
+          import sys, pathlib
+
+          EXPECTED = [
+              "custom-ml-models/snowflake/sql/001_setup_mlops_foundation.sql",
+              "custom-ml-models/snowflake/sql/002_model_registry_and_lineage.sql",
+              "custom-ml-models/snowflake/sql/003_monitoring_views_and_alerts.sql",
+          ]
+
+          errors = []
+          for p in EXPECTED:
+              path = pathlib.Path(p)
+              if not path.exists():
+                  errors.append(f"MISSING: {p}")
+              elif path.stat().st_size == 0:
+                  errors.append(f"EMPTY: {p}")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"All {len(EXPECTED)} SQL foundation scripts are present.")
+          EOF
+
+      - name: Dry-run SQL syntax check (keyword structure)
+        run: |
+          python - <<'EOF'
+          import sys, pathlib, re
+
+          REQUIRED_KEYWORDS = ["CREATE", "INSERT", "SELECT", "UPDATE"]
+
+          errors = []
+          for sql_file in pathlib.Path("custom-ml-models/snowflake/sql").glob("*.sql"):
+              content = sql_file.read_text().upper()
+              found = [kw for kw in REQUIRED_KEYWORDS if kw in content]
+              if not found:
+                  errors.append(f"{sql_file}: no recognisable SQL statements found")
+              else:
+                  print(f"OK: {sql_file.name} — found: {found}")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+          EOF
 
   security-scan:
     name: Security Scan

@@ -194,7 +194,77 @@ jobs:
             --alias "gh-${{ github.sha }}-${{ env.DEPLOY_ENV }}"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 3. Ingestion — stages, streams, tasks, Openflow flows
+  # 3. ML Models — MLOps foundation objects (registry, lineage, monitoring)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-ml-models:
+    name: Deploy ML Model Foundation
+    needs: [deploy-dcm, clone-db]
+    if: always() && needs.deploy-dcm.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Snowflake CLI
+        run: pip install snowflake-cli
+
+      - name: Configure Snowflake connection
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/config.toml << EOF
+          [connections.${{ env.SNOW_CONN }}]
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "SYSADMIN"
+          EOF
+
+      - name: Resolve target ML database for environment
+        id: ml-db
+        run: |
+          if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
+            echo "ml_database=ML_PROD" >> $GITHUB_OUTPUT
+          else
+            echo "ml_database=ML_DEV" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Patch SQL scripts for target environment
+        run: |
+          ML_DB="${{ steps.ml-db.outputs.ml_database }}"
+          for f in custom-ml-models/snowflake/sql/*.sql; do
+            sed -i "s/ML_PROD/${ML_DB}/g" "$f"
+            echo "Patched $f → ${ML_DB}"
+          done
+
+      - name: Apply foundation SQL (001 — registry and deployment events)
+        run: snow sql -f custom-ml-models/snowflake/sql/001_setup_mlops_foundation.sql -c ${{ env.SNOW_CONN }}
+
+      - name: Apply foundation SQL (002 — lineage, approvals, active model view)
+        run: snow sql -f custom-ml-models/snowflake/sql/002_model_registry_and_lineage.sql -c ${{ env.SNOW_CONN }}
+
+      - name: Apply foundation SQL (003 — prediction log, health view, alert pattern)
+        run: snow sql -f custom-ml-models/snowflake/sql/003_monitoring_views_and_alerts.sql -c ${{ env.SNOW_CONN }}
+
+      - name: Summarise ML foundation deployment
+        run: |
+          ML_DB="${{ steps.ml-db.outputs.ml_database }}"
+          echo "## ML Model Foundation" >> $GITHUB_STEP_SUMMARY
+          echo "| Script | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 001_setup_mlops_foundation.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 002_model_registry_and_lineage.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 003_monitoring_views_and_alerts.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 5. Ingestion — stages, streams, tasks, Openflow flows
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-ingestion:
     name: Deploy Ingestion Objects
@@ -274,7 +344,7 @@ jobs:
         run: python ingestion/openflow/flows/deploy_all_flows.py
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 4. dbt — transform layer
+  # 6. dbt — transform layer
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-dbt:
     name: Deploy dbt Models
@@ -343,16 +413,13 @@ jobs:
         run: dbt snapshot --target ${{ env.DBT_TARGET }}
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 5. Streamlit app
+  # 7. Streamlit app
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-streamlit:
-    name: Deploy Streamlit App
+    name: Deploy Streamlit Apps
     needs: deploy-dbt
     if: always() && needs.deploy-dbt.result == 'success'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: streamlit
     steps:
       - uses: actions/checkout@v4
 
@@ -379,11 +446,14 @@ jobs:
           role          = "SYSADMIN"
           EOF
 
-      - name: Deploy Streamlit app
-        run: snow streamlit deploy --replace -c ${{ env.SNOW_CONN }}
+      - name: List discovered apps
+        run: python streamlit/deploy_all.py --list
+
+      - name: Deploy all Streamlit apps
+        run: python streamlit/deploy_all.py -c ${{ env.SNOW_CONN }}
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 6. Cortex Agent
+  # 8. Cortex Agent
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-agent:
     name: Deploy Cortex Agent
@@ -420,7 +490,7 @@ jobs:
         run: python scripts/deploy_agent.py | snow sql -c ${{ env.SNOW_CONN }} --stdin
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 7. Agent evals — post-deploy smoke test
+  # 9. Agent evals — post-deploy smoke test
   # ─────────────────────────────────────────────────────────────────────────────
   run-agent-evals:
     name: Agent Evaluation Suite
@@ -454,11 +524,11 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 8. Cleanup — drop branch clone (DEV only, skipped if keep_clone=true)
+  # 10. Cleanup — drop branch clone (DEV only, skipped if keep_clone=true)
   # ─────────────────────────────────────────────────────────────────────────────
   cleanup-clone:
     name: Drop Branch Clone DB
-    needs: [clone-db, deploy-dcm, deploy-ingestion, deploy-dbt, deploy-streamlit, deploy-agent, run-agent-evals]
+    needs: [clone-db, deploy-dcm, deploy-ml-models, deploy-ingestion, deploy-dbt, deploy-streamlit, deploy-agent, run-agent-evals]
     # Run even if earlier jobs failed so clone is always cleaned up.
     # Skip for: PROD deploys | keep_clone=true | clone-db was skipped
     if: >-

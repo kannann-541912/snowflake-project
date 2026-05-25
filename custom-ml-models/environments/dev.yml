@@ -1,0 +1,17 @@
+environment: dev
+snowflake:
+  database: ML_DEV
+  schema: MLOPS
+  warehouse: ML_DEV_WH
+  role: ML_DEV_ROLE
+deployment:
+  approval_required: false
+  canary_required: false
+  rollback_required: true
+monitoring:
+  latency_slo_ms_p95: 1500
+  drift_threshold: 0.25
+  quality_floor: 0.70
+retraining:
+  enabled: true
+  min_days_between_runs: 7

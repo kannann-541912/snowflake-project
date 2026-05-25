@@ -1,0 +1,43 @@
+model:
+  name: "churn_risk"
+  version: "v1.0.0"
+  owner: "ml-retention-team"
+  risk_tier: "medium"
+  domain: "subscriptions"
+
+objective:
+  prediction_target: "will_churn_in_30d"
+  business_goal: "Prioritize outreach for at-risk customers and reduce monthly churn."
+  decision_frequency: "batch_daily"
+
+data_contract:
+  source_tables:
+    - "ANALYTICS.CUSTOMER_360.SUBSCRIPTION_SNAPSHOT_DAILY"
+    - "ANALYTICS.CUSTOMER_360.SUPPORT_ACTIVITY_DAILY"
+  feature_contract_version: "customer_features_v3"
+  training_window: "2025-01-01 to 2025-12-31"
+  sensitive_attributes:
+    - "region"
+
+training:
+  algorithm: "xgboost_classifier"
+  hyperparameters:
+    max_depth: 6
+    learning_rate: 0.05
+    n_estimators: 400
+  validation_strategy: "time_based_holdout"
+  reproducibility_seed: 42
+
+acceptance_criteria:
+  primary_metric: "auc_roc"
+  minimum_primary_metric: 0.84
+  max_p95_latency_ms: 900
+  max_drift_score: 0.12
+
+deployment:
+  target_environment: "staging"
+  canary_traffic_percent: 10
+  rollback_trigger:
+    - "auc_roc_below_0_82_in_shadow_validation"
+    - "p95_latency_above_1000_for_2_windows"
+    - "drift_score_above_0_15"

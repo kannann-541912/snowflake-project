@@ -1,0 +1,39 @@
+model:
+  name: "<model_name>"
+  version: "v0.1.0"
+  owner: "<owner_name_or_team>"
+  risk_tier: "medium"
+  domain: "<business_domain>"
+
+objective:
+  prediction_target: "<target_column_or_signal>"
+  business_goal: "<goal_statement>"
+  decision_frequency: "<batch_or_realtime>"
+
+data_contract:
+  source_tables:
+    - "<db.schema.table>"
+  feature_contract_version: "<feature_contract_version>"
+  training_window: "<YYYY-MM-DD to YYYY-MM-DD>"
+  sensitive_attributes:
+    - "<optional_sensitive_attribute>"
+
+training:
+  algorithm: "<algorithm_name>"
+  hyperparameters:
+    param_1: "<value>"
+  validation_strategy: "<cv_or_holdout>"
+  reproducibility_seed: 42
+
+acceptance_criteria:
+  primary_metric: "<metric_name>"
+  minimum_primary_metric: 0.80
+  max_p95_latency_ms: 1000
+  max_drift_score: 0.15
+
+deployment:
+  target_environment: "staging"
+  canary_traffic_percent: 10
+  rollback_trigger:
+    - "primary_metric_below_threshold"
+    - "drift_above_threshold"
