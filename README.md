@@ -1,2 +1,2 @@
 # snowflake-project
-DCM for Snowflake Objects and Agents
+Testing out git integration for fraud intelligence
