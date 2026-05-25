@@ -1,0 +1,41 @@
+# SBR Intelligence Platform - Pipeline Configuration
+
+pipeline:
+  name: sbr-labor-ingestion
+  version: "1.0"
+  schedule: "0 6 * * *"  # Daily at 6 AM Mountain
+
+source:
+  stage: "@DEMO_DEV.SBR_ANALYTICS.SBR_SOURCE_STAGE"
+  file_format: CSV_FMT
+  vendors:
+    - id: V001
+      name: Apex Workforce Solutions
+      path: "v001/"
+      pattern: "apex_labor_*.csv"
+    - id: V002
+      name: Northern Pipeline Services
+      path: "v002/"
+      pattern: "nps_timesheet_*.csv"
+    - id: V003
+      name: Prairie Technical Corp
+      path: "v003/"
+      pattern: "prairie_*.csv"
+
+layers:
+  bronze:
+    target: DEMO_DEV.SBR_ANALYTICS.BRONZE_LABOR
+    strategy: append
+  silver:
+    target: DEMO_DEV.SBR_ANALYTICS.SILVER_LABOR
+    strategy: merge
+    quality_checks: true
+  gold:
+    target: DEMO_DEV.SBR_ANALYTICS.GOLD_FACT_LABOR
+    strategy: merge
+    variance_calculation: true
+
+alerts:
+  variance_threshold: 20
+  schema_drift: true
+  notify_role: SBR_ANALYTICS_ROLE

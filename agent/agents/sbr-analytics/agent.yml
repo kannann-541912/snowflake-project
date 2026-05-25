@@ -1,0 +1,23 @@
+name: sbr-analytics-agent
+display_name: SBR Analytics Agent
+version: "1.0"
+description: >
+  AI agent for the Standard Burden Reconciliation Intelligence Platform.
+  Investigates payroll variance gaps across vendors using Cortex Analyst
+  with the SBR_LABOR_SEMANTIC_VIEW.
+
+semantic_views:
+  - DEMO_DEV.SBR_ANALYTICS.SBR_LABOR_SEMANTIC_VIEW
+
+capabilities:
+  - text-to-sql
+  - data-analysis
+  - variance-investigation
+
+sample_questions:
+  - "Which employees have the highest variance?"
+  - "Show total payroll by vendor"
+  - "Which vendor has the most overpaid employees?"
+  - "What is the average variance percent by vendor?"
+  - "How many hours were worked last month?"
+  - "Total payroll by month?"

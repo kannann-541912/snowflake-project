@@ -1,0 +1,267 @@
+-- =============================================================================
+-- SBR Intelligence Platform - Table Definitions
+-- Bronze, Silver, and Gold Layers
+-- =============================================================================
+
+USE ROLE SBR_ANALYTICS_ROLE;
+USE SCHEMA DEMO_DEV.SBR_ANALYTICS;
+
+-- =============================================================================
+-- BRONZE LAYER
+-- =============================================================================
+
+CREATE OR REPLACE TABLE BRONZE_LABOR (
+    EMP_ID VARCHAR(16777216) COMMENT 'Employee identifier from source payroll system',
+    WORK_DATE VARCHAR(16777216) COMMENT 'Date of work as raw text from source file',
+    HOURS VARCHAR(16777216) COMMENT 'Hours worked as raw text from source',
+    RATE VARCHAR(16777216) COMMENT 'Hourly pay rate as raw text from source',
+    TOTAL_PAY VARCHAR(16777216) COMMENT 'Total pay amount as raw text from source',
+    FILE_NAME VARCHAR(16777216) COMMENT 'Original source file name',
+    BATCH_ID VARCHAR(16777216) COMMENT 'Batch identifier for the ingestion run',
+    LOAD_TS TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP() COMMENT 'Timestamp when record was loaded into bronze',
+    _SOURCE_FILE VARCHAR(16777216) COMMENT 'Full path of source file in stage',
+    _INGESTED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP() COMMENT 'System timestamp of ingestion'
+) COMMENT = 'Raw ingested labor/payroll records from vendor CSV files. No transformation applied.';
+
+-- =============================================================================
+-- SILVER LAYER
+-- =============================================================================
+
+CREATE OR REPLACE TABLE SILVER_LABOR (
+    EMP_ID VARCHAR(16777216) NOT NULL COMMENT 'Employee identifier (potential PII - quasi-identifier)',
+    WORK_DATE DATE NOT NULL COMMENT 'Date of work performed',
+    HOURS_WORKED NUMBER(10,2) COMMENT 'Validated hours worked (numeric)',
+    PAY_RATE NUMBER(10,2) COMMENT 'Hourly pay rate (sensitive - compensation data)',
+    PAYROLL_AMOUNT NUMBER(12,2) COMMENT 'Calculated total payroll amount',
+    FILE_NAME VARCHAR(16777216) COMMENT 'Source file name for lineage tracking',
+    BATCH_ID VARCHAR(16777216) COMMENT 'Batch identifier for traceability',
+    LOAD_TS TIMESTAMP_NTZ(9) COMMENT 'Original load timestamp from bronze',
+    DATA_QUALITY_STATUS VARCHAR(16777216) COMMENT 'Quality validation result (PASS/FAIL/WARN)',
+    _CLEANED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP() COMMENT 'Timestamp when cleaning was applied',
+    _ROW_HASH VARCHAR(16777216) COMMENT 'SHA-256 hash for deduplication and change detection'
+) COMMENT = 'Cleaned and validated labor records with type casting, deduplication, and data quality flags.';
+
+CREATE OR REPLACE TABLE SILVER_AUDIT_METRICS (
+    BATCH_ID VARCHAR(16777216),
+    TOTAL_RECORDS NUMBER(38,0),
+    FAILED_RECORDS NUMBER(38,0),
+    TOTAL_VARIANCE NUMBER(38,0),
+    AUDIT_TS TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+) COMMENT = 'Pipeline audit metrics tracking data quality scores and validation outcomes per batch.';
+
+CREATE OR REPLACE TABLE SILVER_BATCH_RUN (
+    BATCH_ID VARCHAR(16777216),
+    STATUS VARCHAR(16777216),
+    START_TS TIMESTAMP_NTZ(9),
+    END_TS TIMESTAMP_NTZ(9)
+) COMMENT = 'Current batch run status tracking pipeline execution progress.';
+
+CREATE OR REPLACE TABLE SILVER_BATCH_RUN_HISTORY (
+    RUN_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    BATCH_ID VARCHAR(16777216),
+    BATCH_NAME VARCHAR(16777216),
+    RUN_START TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    RUN_END TIMESTAMP_NTZ(9),
+    STATUS VARCHAR(16777216) DEFAULT 'RUNNING',
+    TOTAL_TASKS NUMBER(38,0) DEFAULT 0,
+    TASKS_COMPLETED NUMBER(38,0) DEFAULT 0,
+    TASKS_FAILED NUMBER(38,0) DEFAULT 0,
+    TOTAL_RECORDS_PROCESSED NUMBER(38,0) DEFAULT 0,
+    TOTAL_RECORDS_FAILED NUMBER(38,0) DEFAULT 0,
+    DURATION_SEC NUMBER(38,0),
+    TRIGGERED_BY VARCHAR(16777216),
+    ERROR_SUMMARY VARCHAR(16777216)
+) COMMENT = 'Historical record of all batch runs including start/end times and row counts.';
+
+CREATE OR REPLACE TABLE SILVER_BATCH_CONTROL (
+    BATCH_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    BATCH_NAME VARCHAR(16777216) NOT NULL,
+    BATCH_TYPE VARCHAR(16777216) NOT NULL,
+    SCHEDULE_CRON VARCHAR(16777216),
+    STATUS VARCHAR(16777216) DEFAULT 'IDLE',
+    LAST_RUN_START TIMESTAMP_NTZ(9),
+    LAST_RUN_END TIMESTAMP_NTZ(9),
+    LAST_RUN_STATUS VARCHAR(16777216),
+    LAST_RUN_RECORDS_PROCESSED NUMBER(38,0) DEFAULT 0,
+    LAST_RUN_RECORDS_FAILED NUMBER(38,0) DEFAULT 0,
+    LAST_RUN_DURATION_SEC NUMBER(38,0),
+    NEXT_SCHEDULED_RUN TIMESTAMP_NTZ(9),
+    OWNER_ROLE VARCHAR(16777216),
+    CREATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    UPDATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+) COMMENT = 'Batch processing control table tracking active batch state and watermarks.';
+
+CREATE OR REPLACE TABLE SILVER_DATA_QUALITY_ISSUES (
+    EMP_ID VARCHAR(16777216),
+    WORK_DATE DATE,
+    HOURS_WORKED NUMBER(38,0),
+    PAY_RATE NUMBER(38,0),
+    PAYROLL_AMOUNT NUMBER(38,0),
+    FILE_NAME VARCHAR(16777216),
+    BATCH_ID VARCHAR(16777216),
+    LOAD_TS TIMESTAMP_NTZ(9),
+    DATA_QUALITY_STATUS VARCHAR(16777216)
+) COMMENT = 'Logged data quality issues found during silver-layer validation (nulls, type mismatches, outliers).';
+
+CREATE OR REPLACE TABLE SILVER_PIPELINE_LOG (
+    STEP VARCHAR(16777216),
+    STATUS VARCHAR(16777216),
+    MESSAGE VARCHAR(16777216),
+    LOG_TS TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+) COMMENT = 'Operational log for pipeline steps including timing, status, and error messages.';
+
+CREATE OR REPLACE TABLE SILVER_SCHEMA_GAPS (
+    GAP_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    VENDOR_ID VARCHAR(16777216),
+    VENDOR_NAME VARCHAR(16777216),
+    FILE_NAME VARCHAR(16777216),
+    GAP_TYPE VARCHAR(16777216),
+    COLUMN_NAME VARCHAR(16777216),
+    EXPECTED_VALUE VARCHAR(16777216),
+    ACTUAL_VALUE VARCHAR(16777216),
+    SEVERITY VARCHAR(16777216),
+    DESCRIPTION VARCHAR(16777216),
+    DETECTED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    STATUS VARCHAR(16777216) DEFAULT 'OPEN',
+    RESOLVED_AT TIMESTAMP_NTZ(9),
+    RESOLVED_BY VARCHAR(16777216)
+) COMMENT = 'Detected schema drift and missing column issues between expected and actual source schemas.';
+
+CREATE OR REPLACE TABLE SILVER_SCHEMA_REGISTRY (
+    SCHEMA_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    VENDOR_ID VARCHAR(16777216),
+    VENDOR_NAME VARCHAR(16777216),
+    FILE_NAME VARCHAR(16777216),
+    COLUMN_NAME VARCHAR(16777216),
+    COLUMN_POSITION NUMBER(38,0),
+    EXPECTED_DATA_TYPE VARCHAR(16777216),
+    IS_REQUIRED BOOLEAN DEFAULT TRUE,
+    REGISTERED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+) COMMENT = 'Registry of expected source file schemas for schema validation and drift detection.';
+
+CREATE OR REPLACE TABLE SILVER_TASK_REGISTRY (
+    TASK_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    TASK_NAME VARCHAR(16777216) NOT NULL,
+    TASK_TYPE VARCHAR(16777216) NOT NULL,
+    BATCH_ID VARCHAR(16777216),
+    EXECUTION_ORDER NUMBER(38,0) NOT NULL,
+    TARGET_OBJECT VARCHAR(16777216),
+    SOURCE_OBJECT VARCHAR(16777216),
+    SQL_STATEMENT VARCHAR(16777216),
+    PROCEDURE_NAME VARCHAR(16777216),
+    IS_ACTIVE BOOLEAN DEFAULT TRUE,
+    RETRY_COUNT NUMBER(38,0) DEFAULT 0,
+    MAX_RETRIES NUMBER(38,0) DEFAULT 3,
+    TIMEOUT_MINUTES NUMBER(38,0) DEFAULT 30,
+    CREATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+) COMMENT = 'Registry of all pipeline tasks with scheduling metadata and ownership.';
+
+CREATE OR REPLACE TABLE SILVER_TASK_DEPENDENCY (
+    DEPENDENCY_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    TASK_ID VARCHAR(16777216) NOT NULL,
+    DEPENDS_ON_TASK_ID VARCHAR(16777216) NOT NULL,
+    DEPENDENCY_TYPE VARCHAR(16777216) DEFAULT 'HARD',
+    CREATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+) COMMENT = 'DAG dependency definitions between pipeline tasks for orchestration.';
+
+CREATE OR REPLACE TABLE SILVER_TASK_EXECUTION_LOG (
+    EXECUTION_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    BATCH_ID VARCHAR(16777216),
+    TASK_ID VARCHAR(16777216),
+    TASK_NAME VARCHAR(16777216),
+    RUN_START TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    RUN_END TIMESTAMP_NTZ(9),
+    STATUS VARCHAR(16777216) DEFAULT 'RUNNING',
+    RECORDS_READ NUMBER(38,0) DEFAULT 0,
+    RECORDS_WRITTEN NUMBER(38,0) DEFAULT 0,
+    RECORDS_FAILED NUMBER(38,0) DEFAULT 0,
+    ERROR_MESSAGE VARCHAR(16777216),
+    QUERY_ID VARCHAR(16777216),
+    DURATION_SEC NUMBER(38,0),
+    EXECUTED_BY VARCHAR(16777216),
+    EXECUTED_ROLE VARCHAR(16777216)
+) COMMENT = 'Execution log for scheduled tasks including duration, status, and error details.';
+
+CREATE OR REPLACE TABLE SILVER_VENDOR_FILE_LOG (
+    FILE_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    VENDOR_ID VARCHAR(16777216),
+    VENDOR_NAME VARCHAR(16777216),
+    FILE_NAME VARCHAR(16777216),
+    FILE_PATH VARCHAR(16777216),
+    COLUMNS_FOUND VARIANT,
+    COLUMN_COUNT NUMBER(38,0),
+    ROW_COUNT NUMBER(38,0),
+    INGESTED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    SCHEMA_MATCH_STATUS VARCHAR(16777216)
+) COMMENT = 'Log of vendor file ingestion events including file names, sizes, and processing status.';
+
+-- =============================================================================
+-- GOLD LAYER
+-- =============================================================================
+
+CREATE OR REPLACE TABLE GOLD_FACT_LABOR (
+    EMP_ID VARCHAR(16777216) NOT NULL COMMENT 'Employee identifier (potential PII - quasi-identifier)',
+    WORK_DATE DATE NOT NULL COMMENT 'Date of work performed',
+    HOURS_WORKED NUMBER(10,2) COMMENT 'Validated hours worked',
+    PAY_RATE NUMBER(10,2) COMMENT 'Hourly pay rate (sensitive - compensation data)',
+    PAYROLL_AMOUNT NUMBER(12,2) COMMENT 'Actual payroll amount paid',
+    EXPECTED_PAY NUMBER(12,2) COMMENT 'Expected pay based on standard burden rate',
+    VARIANCE NUMBER(12,2) COMMENT 'Difference between actual and expected pay',
+    BATCH_ID VARCHAR(16777216) COMMENT 'Batch identifier for audit traceability',
+    _LOADED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP() COMMENT 'Timestamp when loaded into gold layer',
+    VENDOR_ID VARCHAR(16777216) COMMENT 'Foreign key to GOLD_DIM_VENDOR'
+) COMMENT = 'Conformed fact table for labor cost analysis. Includes variance calculations between actual and expected pay.';
+
+CREATE OR REPLACE TABLE GOLD_DIM_VENDOR (
+    VENDOR_ID VARCHAR(16777216) NOT NULL COMMENT 'Unique vendor identifier',
+    VENDOR_NAME VARCHAR(16777216) NOT NULL COMMENT 'Vendor company name',
+    VENDOR_TYPE VARCHAR(16777216) COMMENT 'Vendor classification type',
+    CONTACT_NAME VARCHAR(16777216) COMMENT 'Primary contact person name (PII)',
+    CONTACT_EMAIL VARCHAR(16777216) COMMENT 'Primary contact email address (PII)',
+    PHONE VARCHAR(16777216) COMMENT 'Contact phone number (PII)',
+    ADDRESS VARCHAR(16777216) COMMENT 'Vendor street address (PII)',
+    CITY VARCHAR(16777216) COMMENT 'Vendor city',
+    STATE VARCHAR(16777216) COMMENT 'Vendor state/province',
+    COUNTRY VARCHAR(16777216) COMMENT 'Vendor country',
+    CONTRACT_START DATE COMMENT 'Contract effective start date',
+    CONTRACT_END DATE COMMENT 'Contract expiration date',
+    HOURLY_RATE_MIN NUMBER(10,2) COMMENT 'Minimum contracted hourly rate (sensitive)',
+    HOURLY_RATE_MAX NUMBER(10,2) COMMENT 'Maximum contracted hourly rate (sensitive)',
+    STATUS VARCHAR(16777216) DEFAULT 'ACTIVE' COMMENT 'Vendor active/inactive status',
+    _LOADED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP() COMMENT 'Timestamp when loaded into gold layer'
+) COMMENT = 'Vendor dimension table with vendor metadata for labor cost attribution.';
+
+CREATE OR REPLACE TABLE GOLD_APP_SBR_CASES (
+    CASE_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    EMP_ID VARCHAR(16777216),
+    PERIOD_START DATE,
+    PERIOD_END DATE,
+    STATUS VARCHAR(16777216) DEFAULT 'OPEN',
+    SEVERITY VARCHAR(16777216) DEFAULT 'MED',
+    CREATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    CREATED_BY VARCHAR(16777216),
+    UPDATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    UPDATED_BY VARCHAR(16777216)
+) COMMENT = 'SBR investigation cases created by the analytics app when variances exceed thresholds.';
+
+CREATE OR REPLACE TABLE GOLD_APP_SBR_CASE_EVENTS (
+    EVENT_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    CASE_ID VARCHAR(16777216),
+    EVENT_TYPE VARCHAR(16777216),
+    EVENT_TS TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    USER_NAME VARCHAR(16777216),
+    USER_ROLE VARCHAR(16777216),
+    PAYLOAD VARIANT
+) COMMENT = 'Audit trail of actions taken on SBR investigation cases.';
+
+CREATE OR REPLACE TABLE GOLD_APP_SBR_AGENT_EXPLANATIONS (
+    RUN_ID VARCHAR(16777216) DEFAULT UUID_STRING(),
+    CASE_ID VARCHAR(16777216),
+    EMP_ID VARCHAR(16777216),
+    REQUEST_TS TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP(),
+    RESPONSE_TS TIMESTAMP_NTZ(9),
+    AGENT_OUTPUT VARIANT,
+    EVIDENCE_SQL VARCHAR(16777216),
+    RESULT_CODE VARCHAR(16777216),
+    ERROR_MESSAGE VARCHAR(16777216)
+) COMMENT = 'AI-generated explanations for SBR variance anomalies detected by the analytics agent.';

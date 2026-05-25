@@ -1,0 +1,13 @@
+name: sbr-intelligence
+title: SBR Intelligence Platform
+query_warehouse: SBR_ANALYTICS_WH
+root_location: "@DEMO_DEV.SBR_ANALYTICS.SBR_STREAMLIT_STAGE"
+main_file: streamlit_app.py
+
+schema: DEMO_DEV.SBR_ANALYTICS
+role: SBR_ANALYTICS_ROLE
+
+dependencies:
+  - streamlit
+  - pandas
+  - altair
