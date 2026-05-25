@@ -80,8 +80,8 @@ snowflake-project/
 ├── streamlit/               # Streamlit in Snowflake dashboard
 ├── scripts/                 # Deploy + validate scripts
 └── .github/workflows/       # CI/CD
-    ├── validate.yml          # PR checks
-    └── deploy.yml            # Main-branch deploy
+    ├── validate.yml          # PR checks (auto on every PR → main)
+    └── deploy.yml            # Deploy pipeline (auto on main → PROD, manual on any branch → DEV/PROD)
 ```
 
 ---
@@ -91,10 +91,20 @@ snowflake-project/
 ### DCM (Declarative Change Management)
 
 Manages Snowflake infrastructure objects declaratively — warehouse, tables, views, roles/grants.
-Supports `DEV` and `PROD` targets with Jinja templating (`env_suffix`, `wh_size`).
+Supports three targets in `manifest.yml` with Jinja templating (`env_suffix`, `wh_size`):
+
+| Target | Database | Used by |
+|--------|----------|---------|
+| `DEV` | `SANDBOX` | Local development |
+| `CI` | `SANDBOX_<BRANCH>` | Branch pipeline (placeholder `SANDBOX_CI` replaced by `sed` at runtime) |
+| `PROD` | `SANDBOX` | Main branch auto-deploy |
 
 ```bash
-snow dcm plan --target DEV -c ci
+# Local dev
+snow dcm plan --target DEV -c dev
+snow dcm deploy --target DEV -c dev --alias "local-test"
+
+# Production (CI handles this automatically on merge to main)
 snow dcm deploy --target PROD -c prod --alias "gh-<sha>"
 ```
 
@@ -243,6 +253,8 @@ CUSTOMERS (source) + ORDERS (source)
 
 ### PR Validation (`.github/workflows/validate.yml`)
 
+Triggers automatically on every pull request targeting `main`.
+
 | Job | What it checks |
 |-----|---------------|
 | `validate-dcm` | DCM analyze + plan against DEV target |
@@ -253,17 +265,77 @@ CUSTOMERS (source) + ORDERS (source)
 | `validate-streamlit` | Python AST syntax check |
 | `security-scan` | Bandit (Python) + Gitleaks (secrets) |
 
-### Main Branch Deploy (`.github/workflows/deploy.yml`)
+### Deploy (`.github/workflows/deploy.yml`)
 
-Ordered pipeline — each stage gates the next:
+#### Triggers
+
+| How | When | Target |
+|-----|------|--------|
+| Automatic | Push to `main` | Always **PROD** |
+| Manual (`workflow_dispatch`) | Any branch, any time | **DEV** (default) or **PROD** |
+
+#### Running a test deploy on your branch
+
+```bash
+# 1. Push your branch first
+git push origin feature/advanced_devops
+```
+
+Then in GitHub:
+
+1. **Actions → Deploy → Run workflow**
+2. Branch: `feature/advanced_devops`
+3. Environment: `DEV` (default — never touches production)
+4. Skip evals: `false` (or `true` for a faster first run)
+5. Keep clone: `true` to inspect the branch database after the pipeline
+6. **Run workflow**
+
+> **Guard rail:** dispatching to `PROD` from any non-`main` branch fails immediately at the `guard` job. Merge to `main` first for production deploys.
+
+#### Branch clone database (DEV only)
+
+Every DEV deploy automatically creates a **Snowflake zero-copy clone** of `SANDBOX`. The clone name is derived from the branch name — slashes, hyphens, and dots become underscores, uppercased, truncated to 30 chars:
 
 ```
-deploy-dcm
-    └── deploy-ingestion  (stages, streams, tasks, Snowpark procs, Openflow flows)
-            └── deploy-dbt  (dbt run + test + snapshot)
-                    ├── deploy-streamlit
-                    └── deploy-agent
-                              └── run-agent-evals  (uploads results as artifact)
+Branch: feature/advanced_devops
+Clone:  SANDBOX_FEATURE_ADVANCED_DEVOPS
+```
+
+All objects — DCM schema changes, ingestion SQL, dbt models, agent evals — deploy into the clone. Production (`SANDBOX`) is never touched. The clone is automatically dropped at the end of the pipeline unless `keep_clone = true`.
+
+To inspect a retained clone locally:
+```bash
+# Browse the clone
+snow sql -q "SHOW SCHEMAS IN DATABASE SANDBOX_FEATURE_ADVANCED_DEVOPS;" -c dev
+snow sql -q "SELECT * FROM SANDBOX_FEATURE_ADVANCED_DEVOPS.TPCH_DEV.FCT_CUSTOMER_ORDERS LIMIT 10;" -c dev
+
+# Drop manually when done
+snow sql -q "DROP DATABASE IF EXISTS SANDBOX_FEATURE_ADVANCED_DEVOPS;" -c dev
+```
+
+#### What each environment targets
+
+| Setting | DEV | PROD |
+|---------|-----|------|
+| Database | `SANDBOX_<BRANCH>` (clone) | `SANDBOX` |
+| DCM target | `CI` (patched to clone) | `PROD` |
+| dbt database | clone DB | `SANDBOX` |
+| dbt schema | `TPCH_DEV` | `TPCH` |
+| Source freshness failure | warn only | blocks pipeline |
+| Clone cleanup | auto-dropped (unless `keep_clone=true`) | n/a |
+
+#### Ordered pipeline
+
+```
+guard
+  └── clone-db  (DEV only: CREATE OR REPLACE DATABASE SANDBOX_<BRANCH> CLONE SANDBOX)
+        └── deploy-dcm  (CI target patched to clone / PROD target for main)
+              └── deploy-ingestion  (SQL repointed to clone on DEV)
+                      └── deploy-dbt  (dbt database = clone on DEV)
+                              ├── deploy-streamlit
+                              └── deploy-agent
+                                        └── run-agent-evals  (artifact uploaded, skippable)
+                                                  └── cleanup-clone  (DEV: drop clone, always runs)
 ```
 
 ---
@@ -280,3 +352,11 @@ Set these in **GitHub repo → Settings → Secrets and variables → Actions**:
 
 > Account (`xna38553.east-us-2.azure`) and user (`MCP_SERVICE_USER`) are hardcoded in the
 > workflow files as non-secret configuration. Only the PAT is a secret.
+
+## `workflow_dispatch` Inputs (manual runs)
+
+| Input | Options | Default | Description |
+|-------|---------|---------|-------------|
+| `environment` | `DEV` / `PROD` | `DEV` | Target environment. PROD blocked on non-main branches. |
+| `skip_evals` | `true` / `false` | `false` | Skip the agent evaluation suite for faster iteration. |
+| `keep_clone` | `true` / `false` | `false` | Retain the branch clone DB after the pipeline for inspection. |
