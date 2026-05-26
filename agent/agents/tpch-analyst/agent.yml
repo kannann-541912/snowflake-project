@@ -1,6 +1,0 @@
-name: TPCH_ANALYST
-fqn: SANDBOX.TPCH.TPCH_ANALYST
-database: SANDBOX
-schema: TPCH
-description: "Natural-language data analyst scoped to SANDBOX.TPCH customer and order data."
-owner: data-platform-team
