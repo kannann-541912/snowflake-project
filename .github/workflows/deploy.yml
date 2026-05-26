@@ -179,6 +179,14 @@ jobs:
           echo "Patched manifest.yml — CI target now points to: ${CLONE_DB}"
           grep "project_name" manifest.yml
 
+      # ── Bootstrap: initialize project on first deploy if it doesn't exist ───
+      # snow dcm deploy requires the DCM project to already be registered in
+      # Snowflake. This step creates it idempotently so subsequent runs are safe.
+      - name: Bootstrap DCM project (idempotent)
+        run: |
+          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
+          snow dcm initialize --target ${TARGET} -c ${{ env.SNOW_CONN }} || true
+
       - name: DCM Analyze
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
