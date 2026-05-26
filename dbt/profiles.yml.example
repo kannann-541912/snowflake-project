@@ -13,7 +13,7 @@ tpch_data_platform:
       user: "MCP_SERVICE_USER"
       authenticator: "oauth"
       token: "{{ env_var('SNOWFLAKE_PAT') }}"
-      role: SYSADMIN
+                role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: TPCH_DEV
@@ -27,7 +27,7 @@ tpch_data_platform:
       user: "MCP_SERVICE_USER"
       authenticator: "oauth"
       token: "{{ env_var('SNOWFLAKE_PAT') }}"
-      role: SYSADMIN
+                role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: TPCH
@@ -41,7 +41,7 @@ tpch_data_platform:
       user: "MCP_SERVICE_USER"
       authenticator: "oauth"
       token: "{{ env_var('SNOWFLAKE_PAT') }}"
-      role: SYSADMIN
+                role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: "TPCH_CI_{{ env_var('CI_RUN_ID', 'local') }}"

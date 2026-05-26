@@ -23,7 +23,7 @@ alerts:
     - "data-platform-oncall@example.com"
 
 # Snowflake Alert DDL (run via DCM or manually to create the alert object)
-# Requires ACCOUNTADMIN or SYSADMIN with EXECUTE ALERT privilege.
+# Requires ACCOUNTADMIN with EXECUTE ALERT privilege.
 snowflake_alert_sql: |
   CREATE OR REPLACE ALERT SANDBOX.TPCH.AGENT_ERROR_RATE_ALERT
       WAREHOUSE = ANALYTICS_WH

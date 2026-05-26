@@ -31,7 +31,7 @@ This repository is the single source of truth for all Snowflake infrastructure, 
 | ML databases | `ML_DEV` / `ML_STAGING` / `ML_PROD` |
 | Warehouse | `ANALYTICS_WH` |
 | Service user | `MCP_SERVICE_USER` |
-| Default role | `SYSADMIN` |
+| Default role | `ACCOUNTADMIN` |
 
 ### Local Setup
 

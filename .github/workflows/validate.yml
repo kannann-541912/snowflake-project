@@ -35,7 +35,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       - name: DCM Analyze
@@ -210,7 +210,7 @@ jobs:
                 user: "MCP_SERVICE_USER"
                 authenticator: oauth
                 token: "${{ secrets.SNOWFLAKE_PAT }}"
-                role: SYSADMIN
+                role: ACCOUNTADMIN
                 database: SANDBOX
                 warehouse: ANALYTICS_WH
                 schema: TPCH_CI_${{ github.run_id }}

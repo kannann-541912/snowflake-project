@@ -13,7 +13,7 @@ token         = ""          # Paste your PAT here — NEVER COMMIT
 warehouse     = "ANALYTICS_WH"
 database      = "SANDBOX"
 schema        = "TPCH"
-role          = "SYSADMIN"
+role          = "ACCOUNTADMIN"
 
 [connections.dev]
 account       = "xna38553.east-us-2.azure"
@@ -23,7 +23,7 @@ token         = ""
 warehouse     = "ANALYTICS_WH"
 database      = "SANDBOX"
 schema        = "TPCH"
-role          = "SYSADMIN"
+role          = "ACCOUNTADMIN"
 
 [connections.prod]
 account       = "xna38553.east-us-2.azure"
@@ -33,7 +33,7 @@ token         = ""
 warehouse     = "ANALYTICS_WH"
 database      = "SANDBOX"
 schema        = "TPCH"
-role          = "SYSADMIN"
+role          = "ACCOUNTADMIN"
 
 [connections.ci]
 account       = "xna38553.east-us-2.azure"
@@ -43,4 +43,4 @@ token         = ""          # Set via SNOWFLAKE_PAT GitHub Secret in CI
 warehouse     = "ANALYTICS_WH"
 database      = "SANDBOX"
 schema        = "TPCH"
-role          = "SYSADMIN"
+role          = "ACCOUNTADMIN"

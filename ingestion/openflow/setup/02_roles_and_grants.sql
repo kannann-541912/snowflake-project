@@ -1,6 +1,6 @@
 -- ============================================================
 -- Step 2: Roles and grants for Openflow SPCS deployment
--- Run as ACCOUNTADMIN or SYSADMIN
+-- Run as ACCOUNTADMIN
 -- ============================================================
 
 -- Dedicated role for the Openflow runtime.
@@ -27,5 +27,5 @@ GRANT CREATE PIPE ON SCHEMA SANDBOX.TPCH_LANDING TO ROLE DATA_PLATFORM_OPENFLOW;
 -- Warehouse for ad-hoc operations (Openflow processors that issue SQL)
 GRANT USAGE ON WAREHOUSE ANALYTICS_WH TO ROLE DATA_PLATFORM_OPENFLOW;
 
--- Grant role to SYSADMIN for manageability
-GRANT ROLE DATA_PLATFORM_OPENFLOW TO ROLE SYSADMIN;
+-- Grant role to ACCOUNTADMIN for manageability
+GRANT ROLE DATA_PLATFORM_OPENFLOW TO ROLE ACCOUNTADMIN;

@@ -98,7 +98,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       - name: Compute clone database name
@@ -127,7 +127,7 @@ jobs:
         run: |
           CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
           snow sql -q "
-            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE SYSADMIN;
+            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE ACCOUNTADMIN;
           " -c dev
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       # ── DEV: patch manifest.yml to point CI target at the branch clone ──────
@@ -224,7 +224,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       - name: Resolve target ML database for environment
@@ -294,7 +294,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       # ── DEV: repoint all SQL files to the branch clone database ─────────────
@@ -388,7 +388,7 @@ jobs:
                 user: "MCP_SERVICE_USER"
                 authenticator: oauth
                 token: "${{ secrets.SNOWFLAKE_PAT }}"
-                role: SYSADMIN
+                role: ACCOUNTADMIN
                 database: ${DBT_DB}
                 warehouse: ANALYTICS_WH
                 schema: ${DBT_SCHEMA}
@@ -443,7 +443,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       - name: List discovered apps
@@ -483,7 +483,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       - name: List discovered agents
@@ -562,7 +562,7 @@ jobs:
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "SYSADMIN"
+          role          = "ACCOUNTADMIN"
           EOF
 
       - name: Drop branch clone database

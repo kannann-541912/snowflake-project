@@ -8,7 +8,7 @@ snowflake:
   schema: "TPCH"
   landing_schema: "TPCH_LANDING"       # Raw landing zone (bronze layer)
   warehouse: "ANALYTICS_WH"
-  role: "SYSADMIN"
+  role: "ACCOUNTADMIN"
   openflow_role: "DATA_PLATFORM_OPENFLOW"  # Least-privilege role for Openflow runtime
 
 # Openflow SPCS deployment configuration

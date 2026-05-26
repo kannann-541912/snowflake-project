@@ -1,6 +1,6 @@
 -- ============================================================
 -- Cortex Agent Usage Monitoring Queries
--- Run against SANDBOX database as SYSADMIN or ACCOUNTADMIN.
+-- Run against SANDBOX database as ACCOUNTADMIN.
 -- ============================================================
 
 -- 1. Agent invocation count (last 7 days)
