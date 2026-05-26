@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: int_pricing_intelligence
+    description: "Intermediate pricing intelligence - passes through staged data"
+
+  - name: int_category_performance
+    description: "Intermediate category performance - passes through staged data"
+
+  - name: int_loyalty_customers
+    description: "Intermediate loyalty customers - passes through staged data"
+
+  - name: int_promotion_performance
+    description: "Intermediate promotion performance - passes through staged data"
+
+  - name: int_returns_margin
+    description: "Intermediate returns margin - passes through staged data"

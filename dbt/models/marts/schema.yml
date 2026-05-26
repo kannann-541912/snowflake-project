@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: pricing_intelligence_analytics_view
+    description: "Pricing intelligence analytics view - one row per active SKU with competitor data and AI recommendations"
+    columns:
+      - name: SKU_ID
+        tests:
+          - not_null
+          - unique
+      - name: OUR_CURRENT_PRICE
+        tests:
+          - is_positive
+      - name: OVERALL_COMPETITIVE_POSITIONING_STATUS
+        tests:
+          - accepted_values:
+              values: ['OVERPRICED', 'UNDERPRICED', 'PRICE_PARITY', 'NO_COMPETITOR_DATA']
+      - name: CORTEX_AI_RECOMMENDED_ACTION_TYPE
+        tests:
+          - accepted_values:
+              values: ['REPRICE', 'REPLENISH', 'PROMOTE', 'MONITOR', 'NO_ACTION_NEEDED']
+
+  - name: category_performance_analytics_view
+    description: "Category performance analytics view - one row per category with KPI aggregates"
+    columns:
+      - name: CATEGORY
+        tests:
+          - not_null
+          - unique
+
+  - name: loyalty_customer_analytics_view
+    description: "Loyalty customer analytics view - one row per member with LTV, churn risk, and segmentation"
+    columns:
+      - name: MEMBER_ID
+        tests:
+          - not_null
+          - unique
+      - name: CHURN_RISK_LEVEL
+        tests:
+          - accepted_values:
+              values: ['HIGH', 'MEDIUM', 'LOW']
+      - name: CUSTOMER_SEGMENT
+        tests:
+          - accepted_values:
+              values: ['VIP', 'LOYAL', 'AT_RISK', 'NEW', 'DORMANT']
+
+  - name: promotion_performance_analytics_view
+    description: "Promotion performance analytics view - one row per promotion with ROI metrics"
+    columns:
+      - name: PROMOTION_ID
+        tests:
+          - not_null
+          - unique
+      - name: PERFORMANCE_STATUS
+        tests:
+          - accepted_values:
+              values: ['OVER_PERFORMING', 'ON_TRACK', 'UNDER_PERFORMING']
+
+  - name: returns_margin_analytics_view
+    description: "Returns margin analytics view - one row per SKU with return rates and margin erosion"
+    columns:
+      - name: SKU_ID
+        tests:
+          - not_null
+          - unique
+      - name: RECOMMENDED_ACTION
+        tests:
+          - accepted_values:
+              values: ['VENDOR_RMA', 'DELIST', 'IMPROVE_LISTING', 'MONITOR', 'QC_REVIEW']

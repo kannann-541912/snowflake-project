@@ -1,0 +1,12 @@
+Category_Intelligence:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: ""
+      user: ""
+      role: RETAIL_CATEGORY_ANALYTICS_ROLE
+      warehouse: RETAIL_CATEGORY_ANALYTICS_WH
+      database: DEMO_DEV
+      schema: RETAIL_CATEGORY_ANALYTICS_AGENT
+      threads: 8

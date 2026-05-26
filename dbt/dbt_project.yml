@@ -1,0 +1,26 @@
+name: Category_Intelligence
+version: 1.0.0
+config-version: 2
+profile: Category_Intelligence
+
+model-paths:
+  - models
+analysis-paths:
+  - analyses
+test-paths:
+  - tests
+seed-paths:
+  - seeds
+macro-paths:
+  - macros
+snapshot-paths:
+  - snapshots
+
+models:
+  Category_Intelligence:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: view

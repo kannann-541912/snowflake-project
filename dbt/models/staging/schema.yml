@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: stg_pricing_intelligence
+    description: "Staged pricing intelligence data from Gold SKU Pricing Intelligence table"
+    columns:
+      - name: SKU_ID
+        tests:
+          - not_null
+
+  - name: stg_category_performance
+    description: "Staged category performance data from Gold Category Performance Summary"
+    columns:
+      - name: CATEGORY
+        tests:
+          - not_null
+
+  - name: stg_loyalty_customers
+    description: "Staged loyalty customer data from Gold Loyalty Customer Insights"
+    columns:
+      - name: MEMBER_ID
+        tests:
+          - not_null
+
+  - name: stg_promotion_performance
+    description: "Staged promotion performance data from Gold Promotion Performance"
+    columns:
+      - name: PROMOTION_ID
+        tests:
+          - not_null
+
+  - name: stg_returns_margin
+    description: "Staged returns margin data from Gold Returns Margin Analysis"
+    columns:
+      - name: SKU_ID
+        tests:
+          - not_null

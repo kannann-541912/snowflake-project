@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: retail_category_analytics
+    database: DEMO_DEV
+    schema: RETAIL_CATEGORY_ANALYTICS_AGENT
+    description: "Retail Category Analytics - Existing Bronze/Silver/Gold pipeline tables"
+
+    tables:
+      - name: GOLD_SKU_PRICING_INTELLIGENCE
+        description: "Gold layer primary pricing dashboard table"
+      - name: GOLD_CATEGORY_PERFORMANCE_SUMMARY
+        description: "Gold layer category-level KPI summary"
+      - name: GOLD_PROMOTION_PERFORMANCE
+        description: "Gold layer promotion performance metrics"
+      - name: GOLD_LOYALTY_CUSTOMER_INSIGHTS
+        description: "Gold layer customer loyalty analytics"
+      - name: GOLD_RETURNS_MARGIN_ANALYSIS
+        description: "Gold layer SKU-level return analysis"
