@@ -1,0 +1,98 @@
+[
+  {
+    "id": "GT-001",
+    "category": "ranking",
+    "question": "What's the ROAS of the best campaign?",
+    "expected_tool": "query_pricing_data",
+    "expected_behavior": "Queries PROMOTION_PERFORMANCE_ANALYTICS_VIEW, orders by ESTIMATED_ROAS DESC, returns the top promotion with its ROAS value",
+    "reference_sql": "SELECT PROMOTION_NAME, ESTIMATED_ROAS FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.PROMOTION_PERFORMANCE_ANALYTICS_VIEW ORDER BY ESTIMATED_ROAS DESC LIMIT 1",
+    "evaluation_criteria": {
+      "must_include": ["ROAS", "promotion"],
+      "must_not_include": ["pricing_intelligence"]
+    }
+  },
+  {
+    "id": "GT-002",
+    "category": "filter",
+    "question": "Which customers are at high churn risk?",
+    "expected_tool": "query_pricing_data",
+    "expected_behavior": "Queries LOYALTY_CUSTOMER_ANALYTICS_VIEW filtered by CHURN_RISK_LEVEL = 'HIGH', returns member names and risk scores",
+    "reference_sql": "SELECT MEMBER_ID, FULL_NAME, CHURN_RISK_SCORE, CUSTOMER_SEGMENT FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.LOYALTY_CUSTOMER_ANALYTICS_VIEW WHERE CHURN_RISK_LEVEL = 'HIGH'",
+    "evaluation_criteria": {
+      "must_include": ["churn", "HIGH"],
+      "must_not_include": ["pricing", "SKU"]
+    }
+  },
+  {
+    "id": "GT-003",
+    "category": "ranking",
+    "question": "Which SKUs have the highest return rates?",
+    "expected_tool": "query_pricing_data",
+    "expected_behavior": "Queries RETURNS_MARGIN_ANALYTICS_VIEW, orders by RETURN_RATE_PCT DESC, returns top SKUs with return rates and reasons",
+    "reference_sql": "SELECT SKU_ID, PRODUCT_NAME, RETURN_RATE_PCT, TOP_RETURN_REASON FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.RETURNS_MARGIN_ANALYTICS_VIEW ORDER BY RETURN_RATE_PCT DESC LIMIT 10",
+    "evaluation_criteria": {
+      "must_include": ["return rate", "SKU"],
+      "must_not_include": ["promotion", "loyalty"]
+    }
+  },
+  {
+    "id": "GT-004",
+    "category": "filter",
+    "question": "Show me overpriced SKUs in the AUDIO category",
+    "expected_tool": "query_pricing_data",
+    "expected_behavior": "Queries PRICING_INTELLIGENCE_ANALYTICS_VIEW filtered by CATEGORY = 'AUDIO' and OVERALL_COMPETITIVE_POSITIONING_STATUS = 'OVERPRICED'",
+    "reference_sql": "SELECT SKU_ID, PRODUCT_NAME, OUR_CURRENT_PRICE, PRIMARY_COMPETITOR_PRICE, PRICE_GAP_VS_PRIMARY_COMPETITOR_PCT FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.PRICING_INTELLIGENCE_ANALYTICS_VIEW WHERE CATEGORY = 'AUDIO' AND OVERALL_COMPETITIVE_POSITIONING_STATUS = 'OVERPRICED'",
+    "evaluation_criteria": {
+      "must_include": ["AUDIO", "overpriced", "price"],
+      "must_not_include": ["returns", "loyalty"]
+    }
+  },
+  {
+    "id": "GT-005",
+    "category": "filter",
+    "question": "Which promotions are under-performing?",
+    "expected_tool": "query_pricing_data",
+    "expected_behavior": "Queries PROMOTION_PERFORMANCE_ANALYTICS_VIEW filtered by PERFORMANCE_STATUS = 'UNDER_PERFORMING', returns promotion names and lift metrics",
+    "reference_sql": "SELECT PROMOTION_NAME, PROMOTION_TYPE, ACTUAL_UNIT_LIFT_PCT, PLANNED_UNIT_LIFT_PCT, PERFORMANCE_STATUS FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.PROMOTION_PERFORMANCE_ANALYTICS_VIEW WHERE PERFORMANCE_STATUS = 'UNDER_PERFORMING'",
+    "evaluation_criteria": {
+      "must_include": ["under-performing", "promotion"],
+      "must_not_include": ["pricing_intelligence", "SKU pricing"]
+    }
+  },
+  {
+    "id": "GT-006",
+    "category": "aggregation",
+    "question": "What is the average margin percentage across all categories?",
+    "expected_tool": "query_pricing_data",
+    "expected_behavior": "Queries CATEGORY_PERFORMANCE_ANALYTICS_VIEW or PRICING_INTELLIGENCE_ANALYTICS_VIEW to compute average margin, grouped by category or overall",
+    "reference_sql": "SELECT CATEGORY, AVERAGE_MARGIN_PERCENTAGE FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.CATEGORY_PERFORMANCE_ANALYTICS_VIEW",
+    "evaluation_criteria": {
+      "must_include": ["margin", "%"],
+      "must_not_include": ["returns", "loyalty"]
+    }
+  },
+  {
+    "id": "GT-007",
+    "category": "recency",
+    "question": "How many SKUs need immediate price review right now?",
+    "expected_tool": "get_pricing_alerts",
+    "expected_behavior": "Calls get_pricing_alerts tool to retrieve count and details of SKUs flagged for immediate price review",
+    "reference_sql": "SELECT COUNT(*) FROM DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.PRICING_INTELLIGENCE_ANALYTICS_VIEW WHERE REQUIRES_IMMEDIATE_PRICE_REVIEW = TRUE",
+    "evaluation_criteria": {
+      "must_include": ["price review", "SKU"],
+      "must_not_include": ["promotion", "loyalty"]
+    }
+  },
+  {
+    "id": "GT-008",
+    "category": "out_of_scope",
+    "question": "What's the weather forecast for tomorrow?",
+    "expected_tool": null,
+    "expected_behavior": "Declines the question politely, explains it only handles retail category analytics",
+    "reference_sql": null,
+    "evaluation_criteria": {
+      "must_include": ["retail", "analytics"],
+      "must_not_include": ["weather", "forecast", "temperature"]
+    }
+  }
+]

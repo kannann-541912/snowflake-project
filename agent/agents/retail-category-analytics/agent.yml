@@ -1,0 +1,6 @@
+name: RETAIL_CATEGORY_ANALYTICS_AGENT
+fqn: DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.RETAIL_CATEGORY_ANALYTICS_AGENT
+database: DEMO_DEV
+schema: RETAIL_CATEGORY_ANALYTICS_AGENT
+description: "Retail Category Analytics Agent covering pricing, promotions, loyalty, and returns."
+owner: RETAIL_CATEGORY_ANALYTICS_ROLE

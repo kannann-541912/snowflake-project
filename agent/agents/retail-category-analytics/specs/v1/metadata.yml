@@ -1,0 +1,14 @@
+version: "1.0.0"
+released: "2026-05-20"
+status: "stable"
+agent_name: "RETAIL_CATEGORY_ANALYTICS_AGENT"
+fqn: "DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.RETAIL_CATEGORY_ANALYTICS_AGENT"
+description: >
+  Initial release of the Retail Category Analytics Agent.
+  Covers pricing intelligence, promotion performance, customer loyalty, and returns margin analysis.
+  Uses cortex_analyst_text_to_sql with semantic view and 3 generic procedure tools.
+breaking_changes: []
+changelog:
+  - "Initial agent deployment with 4 tools (query_pricing_data, execute_sku_action, get_category_health, get_pricing_alerts)"
+  - "Semantic view: RETAIL_CATEGORY_PRICING_ANALYTICS"
+  - "Orchestration budget: 300 seconds"

@@ -1,0 +1,11 @@
+agent:
+  fqn: "DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.RETAIL_CATEGORY_ANALYTICS_AGENT"
+
+alerts:
+  error_rate_threshold_pct: 5.0
+  avg_latency_seconds: 30
+  daily_credit_limit: 10.0
+  eval_pass_score_min: 0.80
+  notification_integration: "SLACK_ALERTS_INTEGRATION"
+  notification_recipients:
+    - "retail-analytics-oncall@mastechdigital.com"

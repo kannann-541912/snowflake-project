@@ -1,0 +1,105 @@
+{
+  "models": {
+    "orchestration": "auto"
+  },
+  "orchestration": {
+    "budget": {
+      "seconds": 300
+    }
+  },
+  "instructions": {
+    "orchestration": "",
+    "response": ""
+  },
+  "tools": [
+    {
+      "tool_spec": {
+        "type": "cortex_analyst_text_to_sql",
+        "name": "query_pricing_data",
+        "description": "Query all retail analytics data using natural language. Covers SKU pricing, margins, competitors, stock levels, promotion campaigns (ROAS, lift, budget, performance), customer loyalty (LTV, churn risk, segments, tiers), and returns (return rates, margin erosion, reasons). Use this for ANY data question."
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "generic",
+        "name": "execute_sku_action",
+        "description": "Execute an action on a specific SKU. Records the action in the audit trail. Actions: REPRICE (change price), REPLENISH (reorder stock), MONITOR (add to watch-list), ESCALATE (flag for senior review). Always confirm with user before executing.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "p_action_type": { "type": "string" },
+            "p_new_value": { "type": "string" },
+            "p_reason": { "type": "string" },
+            "p_sku_id": { "type": "string" }
+          },
+          "required": ["p_action_type", "p_new_value", "p_reason", "p_sku_id"]
+        }
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "generic",
+        "name": "get_category_health",
+        "description": "Get category-level KPI summary including total SKUs, overpriced/underpriced counts, margin percentage, inventory value, and counts needing action. Optionally filter to a single category.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "p_category": { "type": "string" }
+          },
+          "required": ["p_category"]
+        }
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "generic",
+        "name": "get_pricing_alerts",
+        "description": "Get SKUs needing immediate price review sorted by gap severity. Returns alerts with AI recommendations. Optionally filter by category.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "p_category": { "type": "string" },
+            "p_limit": { "type": "number" }
+          },
+          "required": ["p_category", "p_limit"]
+        }
+      }
+    }
+  ],
+  "tool_resources": {
+    "query_pricing_data": {
+      "execution_environment": {
+        "type": "warehouse",
+        "warehouse": ""
+      },
+      "semantic_view": "DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.RETAIL_CATEGORY_PRICING_ANALYTICS"
+    },
+    "execute_sku_action": {
+      "execution_environment": {
+        "type": "warehouse",
+        "warehouse": ""
+      },
+      "identifier": "DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.EXECUTE_SKU_ACTION",
+      "name": "EXECUTE_SKU_ACTION(VARCHAR, VARCHAR, DEFAULT VARCHAR, DEFAULT VARCHAR)",
+      "type": "procedure"
+    },
+    "get_category_health": {
+      "execution_environment": {
+        "type": "warehouse",
+        "warehouse": ""
+      },
+      "identifier": "DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.GET_CATEGORY_HEALTH",
+      "name": "GET_CATEGORY_HEALTH(DEFAULT VARCHAR)",
+      "type": "procedure"
+    },
+    "get_pricing_alerts": {
+      "execution_environment": {
+        "type": "warehouse",
+        "warehouse": ""
+      },
+      "identifier": "DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT.GET_PRICING_ALERTS",
+      "name": "GET_PRICING_ALERTS(DEFAULT VARCHAR, DEFAULT NUMBER)",
+      "type": "procedure"
+    }
+  }
+}
