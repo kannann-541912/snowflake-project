@@ -1,0 +1,88 @@
+-- ============================================================
+-- Cortex Agent Usage Monitoring Queries
+-- Run against SANDBOX database as ACCOUNTADMIN.
+-- ============================================================
+
+-- 1. Agent invocation count (last 7 days)
+SELECT
+    DATE_TRUNC('day', START_TIME)               AS DAY,
+    COUNT(*)                                     AS INVOCATION_COUNT,
+    COUNT(DISTINCT SESSION_ID)                   AS UNIQUE_SESSIONS,
+    AVG(TOTAL_ELAPSED_TIME) / 1000.0            AS AVG_LATENCY_SECONDS,
+    SUM(CREDITS_USED_CLOUD_SERVICES)             AS CREDITS_USED
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+WHERE
+    START_TIME >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+    AND QUERY_TEXT ILIKE '%TPCH_ANALYST%'
+GROUP BY 1
+ORDER BY 1 DESC;
+
+
+-- 2. Tool call breakdown by tool name (last 7 days)
+SELECT
+    DATE_TRUNC('day', START_TIME)   AS DAY,
+    QUERY_TEXT                      AS SAMPLE_QUERY,
+    TOTAL_ELAPSED_TIME / 1000.0     AS ELAPSED_SECONDS,
+    CREDITS_USED_CLOUD_SERVICES     AS CREDITS
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+WHERE
+    START_TIME >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+    AND QUERY_TEXT ILIKE '%query_customer_orders%'
+ORDER BY ELAPSED_SECONDS DESC
+LIMIT 50;
+
+
+-- 3. Eval results trend — pass rate over time
+SELECT
+    DATE_TRUNC('day', EVAL_TIMESTAMP)           AS EVAL_DATE,
+    COUNT(*)                                     AS QUESTIONS_EVALUATED,
+    SUM(CASE WHEN PASSED THEN 1 ELSE 0 END)     AS PASSED,
+    AVG(OVERALL_SCORE)                           AS AVG_SCORE,
+    MIN(OVERALL_SCORE)                           AS MIN_SCORE
+FROM SANDBOX.TPCH.AGENT_EVAL_RESULTS
+GROUP BY 1
+ORDER BY 1 DESC;
+
+
+-- 4. Slowest agent queries (last 30 days) — performance triage
+SELECT
+    START_TIME,
+    TOTAL_ELAPSED_TIME / 1000.0     AS ELAPSED_SECONDS,
+    ROWS_PRODUCED,
+    CREDITS_USED_CLOUD_SERVICES,
+    LEFT(QUERY_TEXT, 500)           AS QUERY_SNIPPET
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+WHERE
+    START_TIME >= DATEADD(day, -30, CURRENT_TIMESTAMP())
+    AND QUERY_TEXT ILIKE '%TPCH_ANALYST%'
+    AND TOTAL_ELAPSED_TIME > 10000  -- > 10 seconds
+ORDER BY TOTAL_ELAPSED_TIME DESC
+LIMIT 20;
+
+
+-- 5. Failed queries — error monitoring
+SELECT
+    START_TIME,
+    ERROR_CODE,
+    ERROR_MESSAGE,
+    LEFT(QUERY_TEXT, 500)           AS QUERY_SNIPPET
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+WHERE
+    START_TIME >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+    AND QUERY_TEXT ILIKE '%TPCH_ANALYST%'
+    AND ERROR_CODE IS NOT NULL
+ORDER BY START_TIME DESC
+LIMIT 50;
+
+
+-- 6. Credit consumption by day — budget tracking
+SELECT
+    DATE_TRUNC('day', START_TIME)           AS DAY,
+    SUM(CREDITS_USED_CLOUD_SERVICES)        AS CLOUD_SERVICE_CREDITS,
+    COUNT(*)                                AS QUERY_COUNT
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+WHERE
+    START_TIME >= DATEADD(day, -30, CURRENT_TIMESTAMP())
+    AND QUERY_TEXT ILIKE '%TPCH_ANALYST%'
+GROUP BY 1
+ORDER BY 1 DESC;

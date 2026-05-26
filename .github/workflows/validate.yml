@@ -5,9 +5,8 @@ on:
     branches: [main]
 
 env:
-  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-  SNOWFLAKE_PRIVATE_KEY_RAW: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+  SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
+  SNOWFLAKE_USER: "MCP_SERVICE_USER"
 
 jobs:
   validate-dcm:
@@ -27,17 +26,19 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
-          cat > ~/.snowflake/config.toml << 'EOF'
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
+          cat > ~/.snowflake/config.toml << EOF
           [connections.ci]
-          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
-          user = "${{ secrets.SNOWFLAKE_USER }}"
-          authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/snowflake_key.p8"
-          role = "SYSADMIN"
-          warehouse = "COMPUTE_WH"
+          account       = "xna38553.east-us-2.azure"
+          user          = "MCP_SERVICE_USER"
+          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          warehouse     = "ANALYTICS_WH"
+          database      = "SANDBOX"
+          schema        = "TPCH"
+          role          = "ACCOUNTADMIN"
           EOF
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > /tmp/snowflake_key.p8
-          chmod 600 /tmp/snowflake_key.p8
 
       - name: DCM Analyze
         run: snow dcm raw-analyze --target DEV -c ci
@@ -69,8 +70,56 @@ jobs:
       - name: Install dependencies
         run: pip install streamlit
 
-      - name: Check Streamlit app syntax
-        run: python -c "import ast; ast.parse(open('streamlit/streamlit_app.py').read())"
+      - name: Check syntax of all Streamlit app entry points
+        run: |
+          python - <<'EOF'
+          import ast, pathlib, sys
+
+          apps_dir = pathlib.Path("streamlit/apps")
+          mains = sorted(apps_dir.glob("*/main.py"))
+
+          if not mains:
+              print("No main.py files found in streamlit/apps/.")
+              sys.exit(1)
+
+          errors = []
+          for path in mains:
+              try:
+                  ast.parse(path.read_text())
+                  print(f"OK: {path}")
+              except SyntaxError as e:
+                  errors.append(f"SYNTAX ERROR in {path}: {e}")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"\nAll {len(mains)} app(s) passed syntax check.")
+          EOF
+
+      - name: Check shared utils syntax
+        run: python -c "import ast; ast.parse(open('streamlit/shared/utils.py').read())"
+
+      - name: Verify each app has snowflake.yml and environment.yml
+        run: |
+          python - <<'EOF'
+          import pathlib, sys
+
+          apps_dir = pathlib.Path("streamlit/apps")
+          errors = []
+          for app_dir in sorted(apps_dir.iterdir()):
+              if not app_dir.is_dir():
+                  continue
+              for required in ("snowflake.yml", "environment.yml", "main.py"):
+                  if not (app_dir / required).exists():
+                      errors.append(f"MISSING {required} in {app_dir.name}/")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"All apps have required files.")
+          EOF
 
   lint-naming:
     name: Naming Conventions
@@ -97,8 +146,221 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Validate agent spec
-        run: python scripts/validate_agent_spec.py
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Verify each agent has required files
+        run: |
+          python - <<'EOF'
+          import pathlib, sys
+
+          agents_dir = pathlib.Path("agent/agents")
+          errors = []
+          for agent_dir in sorted(agents_dir.iterdir()):
+              if not agent_dir.is_dir():
+                  continue
+              for required in ("agent.yml",):
+                  if not (agent_dir / required).exists():
+                      errors.append(f"MISSING {required} in {agent_dir.name}/")
+              spec_jsons = list((agent_dir / "specs").rglob("agent_spec.json")) if (agent_dir / "specs").exists() else []
+              if not spec_jsons:
+                  errors.append(f"No agent_spec.json found in {agent_dir.name}/specs/")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"All agent directories have required files.")
+          EOF
+
+      - name: List discovered agents
+        run: python agent/deploy_all.py --list
+
+      - name: Validate deploy SQL for all agents (dry-run)
+        run: python agent/deploy_all.py --dry-run -c default
+
+      - name: Validate eval configs for all agents (dry-run)
+        run: python agent/run_evals.py --all --dry-run
+
+  validate-dbt:
+    name: dbt Compile & Parse
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt-snowflake
+        run: pip install dbt-snowflake
+
+      - name: Write dbt profiles
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          tpch_data_platform:
+            target: ci
+            outputs:
+              ci:
+                type: snowflake
+                account: "xna38553.east-us-2.azure"
+                user: "MCP_SERVICE_USER"
+                authenticator: oauth
+                token: "${{ secrets.SNOWFLAKE_PAT }}"
+                role: ACCOUNTADMIN
+                database: SANDBOX
+                warehouse: ANALYTICS_WH
+                schema: TPCH_CI_${{ github.run_id }}
+                threads: 4
+                query_tag: "dbt_ci_pr_${{ github.event.number }}"
+          EOF
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt compile (all models)
+        run: dbt compile
+
+      - name: dbt parse
+        run: dbt parse
+
+  validate-ingestion:
+    name: Openflow Flow Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install nipyapi
+        run: pip install nipyapi pyyaml
+
+      - name: Parse Openflow flow files (syntax)
+        run: |
+          for f in ingestion/openflow/flows/*.py; do
+            echo "Parsing $f..."
+            python -c "import ast; ast.parse(open('$f').read())"
+          done
+          echo "All Openflow flow files are syntactically valid."
+
+      - name: Dry-run all flows (validates flow config structure)
+        run: |
+          python ingestion/openflow/flows/deploy_all_flows.py --dry-run
+
+  validate-ml-models:
+    name: ML Model Spec & SQL Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate model spec YAML files
+        run: |
+          python - <<'EOF'
+          import sys, yaml, pathlib, os
+
+          REQUIRED_TOP = {"model", "objective", "data_contract", "training", "acceptance_criteria", "deployment"}
+          REQUIRED_MODEL = {"name", "version", "owner", "risk_tier", "domain"}
+
+          specs = list(pathlib.Path("custom-ml-models").rglob("model_spec.yml"))
+          if not specs:
+              print("No model_spec.yml files found — nothing to validate.")
+              sys.exit(0)
+
+          errors = []
+          for path in specs:
+              with open(path) as f:
+                  data = yaml.safe_load(f)
+              missing_top = REQUIRED_TOP - set(data.keys())
+              if missing_top:
+                  errors.append(f"{path}: missing top-level keys: {missing_top}")
+              missing_model = REQUIRED_MODEL - set(data.get("model", {}).keys())
+              if missing_model:
+                  errors.append(f"{path}: missing model fields: {missing_model}")
+              if str(data.get("model", {}).get("risk_tier", "")) not in {"low", "medium", "high"}:
+                  errors.append(f"{path}: model.risk_tier must be low, medium, or high")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"Validated {len(specs)} model spec(s) — all passed.")
+          EOF
+
+      - name: Validate template YAML files are parseable
+        run: |
+          python - <<'EOF'
+          import sys, yaml, pathlib
+
+          for path in pathlib.Path("custom-ml-models/templates").glob("*.yml"):
+              with open(path) as f:
+                  yaml.safe_load(f)
+              print(f"OK: {path}")
+
+          print("Template YAML files are valid.")
+          EOF
+
+      - name: Check SQL foundation scripts are present and non-empty
+        run: |
+          python - <<'EOF'
+          import sys, pathlib
+
+          EXPECTED = [
+              "custom-ml-models/snowflake/sql/001_setup_mlops_foundation.sql",
+              "custom-ml-models/snowflake/sql/002_model_registry_and_lineage.sql",
+              "custom-ml-models/snowflake/sql/003_monitoring_views_and_alerts.sql",
+          ]
+
+          errors = []
+          for p in EXPECTED:
+              path = pathlib.Path(p)
+              if not path.exists():
+                  errors.append(f"MISSING: {p}")
+              elif path.stat().st_size == 0:
+                  errors.append(f"EMPTY: {p}")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+
+          print(f"All {len(EXPECTED)} SQL foundation scripts are present.")
+          EOF
+
+      - name: Dry-run SQL syntax check (keyword structure)
+        run: |
+          python - <<'EOF'
+          import sys, pathlib, re
+
+          REQUIRED_KEYWORDS = ["CREATE", "INSERT", "SELECT", "UPDATE"]
+
+          errors = []
+          for sql_file in pathlib.Path("custom-ml-models/snowflake/sql").glob("*.sql"):
+              content = sql_file.read_text().upper()
+              found = [kw for kw in REQUIRED_KEYWORDS if kw in content]
+              if not found:
+                  errors.append(f"{sql_file}: no recognisable SQL statements found")
+              else:
+                  print(f"OK: {sql_file.name} — found: {found}")
+
+          if errors:
+              print("\n".join(errors))
+              sys.exit(1)
+          EOF
 
   security-scan:
     name: Security Scan
@@ -116,7 +378,9 @@ jobs:
       - name: Run Bandit (Python security)
         run: |
           pip install bandit
-          bandit -r streamlit/ scripts/ agent/ --severity-level medium --confidence-level medium
+          bandit -r streamlit/ scripts/ agent/ ingestion/ \
+            --severity-level medium --confidence-level medium \
+            --exclude ingestion/openflow/flows/
 
       - name: Run Gitleaks (secret detection)
         uses: gitleaks/gitleaks-action@v2

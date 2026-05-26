@@ -1,0 +1,18 @@
+environment: prod
+snowflake:
+  database: ML_PROD
+  schema: MLOPS
+  warehouse: ML_PROD_WH
+  role: ML_PROD_ROLE
+deployment:
+  approval_required: true
+  canary_required: true
+  rollback_required: true
+  dual_control_required_for_high_risk: true
+monitoring:
+  latency_slo_ms_p95: 1000
+  drift_threshold: 0.15
+  quality_floor: 0.80
+retraining:
+  enabled: true
+  min_days_between_runs: 30

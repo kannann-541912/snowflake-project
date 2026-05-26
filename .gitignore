@@ -5,13 +5,31 @@ out/
 # Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+.env
 
 # Secrets - NEVER commit
 config.toml
 *.pem
 *.key
+*.p8
+profiles.yml        # dbt profiles — copy from profiles.yml.example
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# Airflow
+airflow.db
+airflow.cfg
+airflow/logs/
+webserver_config.py
+
+# Agent eval results (generated at runtime)
+agent/evals/results/*.json
 
 # OS
 .DS_Store

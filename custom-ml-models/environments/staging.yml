@@ -1,0 +1,17 @@
+environment: staging
+snowflake:
+  database: ML_STAGING
+  schema: MLOPS
+  warehouse: ML_STAGING_WH
+  role: ML_STAGING_ROLE
+deployment:
+  approval_required: true
+  canary_required: true
+  rollback_required: true
+monitoring:
+  latency_slo_ms_p95: 1200
+  drift_threshold: 0.20
+  quality_floor: 0.75
+retraining:
+  enabled: true
+  min_days_between_runs: 14

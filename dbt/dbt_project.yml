@@ -1,0 +1,64 @@
+name: "tpch_data_platform"
+version: "1.0.0"
+config-version: 2
+
+profile: "tpch_data_platform"
+
+# Model path configuration
+model-paths:    ["models"]
+analysis-paths: ["analyses"]
+test-paths:     ["tests"]
+seed-paths:     ["seeds"]
+macro-paths:    ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Global model defaults
+models:
+  tpch_data_platform:
+    # Staging: views by default, no grants, source-aligned
+    staging:
+      +materialized: view
+      +schema: staging
+      +tags: ["staging"]
+
+    # Intermediate: ephemeral joins/transforms — never queried directly
+    intermediate:
+      +materialized: ephemeral
+      +tags: ["intermediate"]
+
+    # Marts: incremental or table, queryable by BI/agents
+    marts:
+      +materialized: incremental
+      +schema: marts
+      +tags: ["marts"]
+      +grants:
+        select: ["DATA_READER"]
+
+# Snapshot defaults
+snapshots:
+  tpch_data_platform:
+    +target_schema: snapshots
+    +strategy: timestamp
+    +updated_at: CREATED_AT
+
+# Seed defaults
+seeds:
+  tpch_data_platform:
+    +schema: seeds
+    +column_types:
+      id: number
+
+# Variable defaults (override per target in profiles.yml)
+vars:
+  # Rolling window for incremental models
+  incremental_lookback_hours: 48
+
+  # Source database / schema (override for DEV)
+  source_database: "SANDBOX"
+  source_schema: "TPCH"
+  landing_schema: "TPCH_LANDING"

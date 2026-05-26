@@ -5,12 +5,19 @@ default_target: 'DEV'
 targets:
   DEV:
     project_name: 'SANDBOX.TPCH.DATA_PLATFORM_DEV'
-    project_owner: SYSADMIN
+    project_owner: ACCOUNTADMIN
     templating_config: 'DEV'
   PROD:
     project_name: 'SANDBOX.TPCH.DATA_PLATFORM'
-    project_owner: SYSADMIN
+    project_owner: ACCOUNTADMIN
     templating_config: 'PROD'
+  # CI target — database name is SANDBOX_CI (placeholder).
+  # In CI the deploy workflow replaces SANDBOX_CI with the actual
+  # branch clone database name (e.g. SANDBOX_FEATURE_NEW_AGENT) via sed.
+  CI:
+    project_name: 'SANDBOX_CI.TPCH.DATA_PLATFORM_CI'
+    project_owner: ACCOUNTADMIN
+    templating_config: 'DEV'
 
 templating:
   defaults:

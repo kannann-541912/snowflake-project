@@ -1,0 +1,48 @@
+# Cortex Agent Alert Policy
+# These thresholds are used by the CI monitoring job and can feed Snowflake Alerts.
+
+agent:
+  fqn: "SANDBOX.TPCH.TPCH_ANALYST"
+
+alerts:
+  # Alert if agent error rate exceeds this % in any 1-hour window
+  error_rate_threshold_pct: 5.0
+
+  # Alert if average latency exceeds this in seconds (rolling 15-min window)
+  avg_latency_seconds: 30
+
+  # Alert if credit consumption per day exceeds this amount
+  daily_credit_limit: 10.0
+
+  # Alert if eval overall pass score drops below this in any eval run
+  eval_pass_score_min: 0.80
+
+  # Notification targets (Snowflake notification integration names)
+  notification_integration: "SLACK_ALERTS_INTEGRATION"
+  notification_recipients:
+    - "data-platform-oncall@example.com"
+
+# Snowflake Alert DDL (run via DCM or manually to create the alert object)
+# Requires ACCOUNTADMIN with EXECUTE ALERT privilege.
+snowflake_alert_sql: |
+  CREATE OR REPLACE ALERT SANDBOX.TPCH.AGENT_ERROR_RATE_ALERT
+      WAREHOUSE = ANALYTICS_WH
+      SCHEDULE = '15 MINUTES'
+      IF (EXISTS (
+          SELECT 1
+          FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+          WHERE START_TIME >= DATEADD(minute, -15, CURRENT_TIMESTAMP())
+            AND QUERY_TEXT ILIKE '%TPCH_ANALYST%'
+            AND ERROR_CODE IS NOT NULL
+          HAVING COUNT(*) * 100.0 / NULLIF(
+              (SELECT COUNT(*) FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+               WHERE START_TIME >= DATEADD(minute, -15, CURRENT_TIMESTAMP())
+                 AND QUERY_TEXT ILIKE '%TPCH_ANALYST%'), 0) > 5.0
+      ))
+  THEN
+      CALL SYSTEM$SEND_EMAIL(
+          'SLACK_ALERTS_INTEGRATION',
+          'data-platform-oncall@example.com',
+          'ALERT: TPCH_ANALYST agent error rate exceeded 5%',
+          'Check SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY for details.'
+      );
