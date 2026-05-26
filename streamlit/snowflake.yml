@@ -1,0 +1,20 @@
+definition_version: 2
+entities:
+  streamlit_app:
+    type: streamlit
+    identifier:
+      database: DEMO_DEV
+      schema: RETAIL_CATEGORY_ANALYTICS_AGENT
+      name: CATEGORY_INTELLIGENCE_PLATFORM
+    title: Category Intelligence Platform
+    query_warehouse: RETAIL_CATEGORY_ANALYTICS_WH
+    compute_pool: SYSTEM_COMPUTE_POOL_CPU
+    run_mode: SpcsOnly
+    execute_as: OWNER
+    main_file: streamlit_app.py
+    external_access_integrations:
+      - SERPAPI_ACCESS_INTEGRATION
+    artifacts:
+      - pyproject.toml
+      - streamlit_app.py
+      - .streamlit/config.toml
