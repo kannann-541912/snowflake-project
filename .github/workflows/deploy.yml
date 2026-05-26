@@ -89,6 +89,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.dev]
           account       = "xna38553.east-us-2.azure"
@@ -153,6 +155,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
           account       = "xna38553.east-us-2.azure"
@@ -215,6 +219,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
           account       = "xna38553.east-us-2.azure"
@@ -285,6 +291,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
           account       = "xna38553.east-us-2.azure"
@@ -434,6 +442,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
           account       = "xna38553.east-us-2.azure"
@@ -474,6 +484,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
           account       = "xna38553.east-us-2.azure"
@@ -553,6 +565,8 @@ jobs:
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.dev]
           account       = "xna38553.east-us-2.azure"
