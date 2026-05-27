@@ -429,38 +429,46 @@ jobs:
           fi
 
           cat > ~/.dbt/profiles.yml << EOF
-          tpch_data_platform:
-            target: ${{ env.DBT_TARGET }}
-            outputs:
-              ${{ env.DBT_TARGET }}:
-                type: snowflake
-                account: "xna38553.east-us-2.azure"
-                user: "MCP_SERVICE_USER"
-                authenticator: oauth
-                token: "${{ secrets.SNOWFLAKE_PAT }}"
-                role: ACCOUNTADMIN
-                database: ${DBT_DB}
-                warehouse: ANALYTICS_WH
-                schema: ${DBT_SCHEMA}
-                threads: 8
-                query_tag: "dbt_${{ env.DEPLOY_ENV }}_${{ github.sha }}"
-          EOF
+tpch_data_platform:
+  target: ${{ env.DBT_TARGET }}
+  outputs:
+    ${{ env.DBT_TARGET }}:
+      type: snowflake
+      account: "xna38553.east-us-2.azure"
+      user: "MCP_SERVICE_USER"
+      authenticator: oauth
+      token: "${{ secrets.SNOWFLAKE_PAT }}"
+      role: ACCOUNTADMIN
+      database: ${DBT_DB}
+      warehouse: ANALYTICS_WH
+      schema: ${DBT_SCHEMA}
+      threads: 8
+      query_tag: "dbt_${{ env.DEPLOY_ENV }}_${{ github.sha }}"
+EOF
 
       - name: dbt deps
         run: dbt deps
 
       - name: dbt source freshness
         # Warn-only on DEV — clone data may not be fresh
-        run: dbt source freshness || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
+        run: dbt source freshness --vars '{"source_database": "'${DBT_DB}'"}' || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
+        env:
+          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
 
       - name: dbt run
-        run: dbt run --target ${{ env.DBT_TARGET }}
+        run: dbt run --target ${{ env.DBT_TARGET }} --vars '{"source_database": "'${DBT_DB}'"}'
+        env:
+          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
 
       - name: dbt test
-        run: dbt test --target ${{ env.DBT_TARGET }}
+        run: dbt test --target ${{ env.DBT_TARGET }} --vars '{"source_database": "'${DBT_DB}'"}'
+        env:
+          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
 
       - name: dbt snapshot
-        run: dbt snapshot --target ${{ env.DBT_TARGET }}
+        run: dbt snapshot --target ${{ env.DBT_TARGET }} --vars '{"source_database": "'${DBT_DB}'"}'
+        env:
+          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 7. Streamlit app
