@@ -7,16 +7,20 @@ Handles complex transformations that are impractical in pure SQL.
 Usage (from Snowflake Task or local):
     snow snowpark execute procedure SANDBOX.TPCH.NORMALIZE_CUSTOMERS()
 
-Or deploy as a Snowflake Python UDF / Stored Procedure via:
-    snow snowpark deploy
+Or deploy as a Snowflake Python Stored Procedure via:
+    python ingestion/snowpark/transforms.py
 """
 
 from __future__ import annotations
 
+import os
 import re
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col, lit, regexp_replace, trim, upper, lower, when
+
+# Database name — overridable via environment variable for CI/branch clones
+DB = os.getenv("SNOWFLAKE_DATABASE", "SANDBOX")
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +33,7 @@ def normalize_email(session: Session) -> str:
     - Lowercase, trim whitespace, validate format.
     - Returns a summary string.
     """
-    df = session.table("SANDBOX.TPCH_LANDING.CUSTOMERS_RAW")
+    df = session.table(f"{DB}.TPCH_LANDING.CUSTOMERS_RAW")
 
     normalized = df.with_column(
         "EMAIL",
@@ -40,7 +44,7 @@ def normalize_email(session: Session) -> str:
 
     # Write normalized rows to a staging table
     normalized.write.mode("overwrite").save_as_table(
-        "SANDBOX.TPCH_LANDING.CUSTOMERS_NORMALIZED"
+        f"{DB}.TPCH_LANDING.CUSTOMERS_NORMALIZED"
     )
 
     count = normalized.count()
@@ -56,7 +60,7 @@ def parse_order_amounts(session: Session) -> str:
     Stored procedure: parse TOTAL_AMOUNT strings to numeric, reject invalid rows.
     Writes clean rows to ORDERS_NORMALIZED and bad rows to ORDERS_REJECTED.
     """
-    df = session.table("SANDBOX.TPCH_LANDING.ORDERS_RAW")
+    df = session.table(f"{DB}.TPCH_LANDING.ORDERS_RAW")
 
     # Strip currency symbols and commas, then cast
     cleaned = df.with_column(
@@ -67,8 +71,8 @@ def parse_order_amounts(session: Session) -> str:
     valid = cleaned.filter(col("TOTAL_AMOUNT_CLEAN").rlike(r"^\d+(\.\d{1,2})?$"))
     rejected = cleaned.filter(~col("TOTAL_AMOUNT_CLEAN").rlike(r"^\d+(\.\d{1,2})?$"))
 
-    valid.write.mode("overwrite").save_as_table("SANDBOX.TPCH_LANDING.ORDERS_NORMALIZED")
-    rejected.write.mode("overwrite").save_as_table("SANDBOX.TPCH_LANDING.ORDERS_REJECTED")
+    valid.write.mode("overwrite").save_as_table(f"{DB}.TPCH_LANDING.ORDERS_NORMALIZED")
+    rejected.write.mode("overwrite").save_as_table(f"{DB}.TPCH_LANDING.ORDERS_REJECTED")
 
     return f"Valid: {valid.count()} | Rejected: {rejected.count()}"
 
@@ -84,20 +88,20 @@ def register_procedures(session: Session) -> None:
     """
     session.sproc.register(
         func=normalize_email,
-        name="SANDBOX.TPCH.NORMALIZE_CUSTOMERS",
+        name=f"{DB}.TPCH.NORMALIZE_CUSTOMERS",
         replace=True,
         is_permanent=True,
-        stage_location="@SANDBOX.TPCH_LANDING.SNOWPARK_OUTPUT_STAGE",
+        stage_location=f"@{DB}.TPCH_LANDING.SNOWPARK_OUTPUT_STAGE",
         packages=["snowflake-snowpark-python"],
         comment="Normalize customer email addresses in landing table",
     )
 
     session.sproc.register(
         func=parse_order_amounts,
-        name="SANDBOX.TPCH.PARSE_ORDER_AMOUNTS",
+        name=f"{DB}.TPCH.PARSE_ORDER_AMOUNTS",
         replace=True,
         is_permanent=True,
-        stage_location="@SANDBOX.TPCH_LANDING.SNOWPARK_OUTPUT_STAGE",
+        stage_location=f"@{DB}.TPCH_LANDING.SNOWPARK_OUTPUT_STAGE",
         packages=["snowflake-snowpark-python"],
         comment="Parse and validate order amount strings in landing table",
     )
@@ -112,12 +116,14 @@ def register_procedures(session: Session) -> None:
 if __name__ == "__main__":
     import os
 
+    database = os.getenv("SNOWFLAKE_DATABASE", "SANDBOX")
+
     connection_params = {
         "account":   os.environ.get("SNOWFLAKE_ACCOUNT", "xna38553.east-us-2.azure"),
         "user":      os.environ.get("SNOWFLAKE_USER", "MCP_SERVICE_USER"),
         "role":      os.getenv("SNOWFLAKE_ROLE", "ACCOUNTADMIN"),
         "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "ANALYTICS_WH"),
-        "database":  "SANDBOX",
+        "database":  database,
         "schema":    "TPCH",
     }
 
