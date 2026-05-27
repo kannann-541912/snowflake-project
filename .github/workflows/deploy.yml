@@ -385,7 +385,13 @@ jobs:
           OPENFLOW_RUNTIME_URL: ${{ secrets.OPENFLOW_RUNTIME_URL }}
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
           AWS_REGION: ${{ vars.AWS_REGION }}
-        run: python ingestion/openflow/flows/deploy_all_flows.py
+        run: |
+          if [ -z "$OPENFLOW_RUNTIME_URL" ]; then
+            echo "OPENFLOW_RUNTIME_URL not set — running in dry-run mode to validate flow configs."
+            python ingestion/openflow/flows/deploy_all_flows.py --dry-run
+          else
+            python ingestion/openflow/flows/deploy_all_flows.py
+          fi
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 6. dbt — transform layer
