@@ -179,6 +179,16 @@ jobs:
           echo "Patched manifest.yml — CI target now points to: ${CLONE_DB}"
           grep "project_name" manifest.yml
 
+      - name: Patch DCM definition files for CI clone (DEV only)
+        if: env.DEPLOY_ENV == 'DEV'
+        run: |
+          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
+          # Repoint all SANDBOX. references in definition files to the clone DB
+          for f in sources/definitions/*.sql; do
+            sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
+            echo "Patched $f → ${CLONE_DB}"
+          done
+
       # ── Bootstrap: initialize project on first deploy if it doesn't exist ───
       # snow dcm deploy requires the DCM project to already be registered in
       # Snowflake. This step creates it idempotently so subsequent runs are safe.
