@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select DOC_ID
+from DEMO_DEV.FRAUD_INTELLIGENCE.SLV_INVESTIGATION_KNOWLEDGE_BASE
+where DOC_ID is null
+
+

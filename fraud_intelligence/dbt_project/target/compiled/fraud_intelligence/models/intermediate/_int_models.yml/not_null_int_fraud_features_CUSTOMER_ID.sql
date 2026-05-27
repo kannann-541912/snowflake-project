@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select CUSTOMER_ID
+from DEMO_DEV.FRAUD_INTELLIGENCE.SLV_FRAUD_FEATURES
+where CUSTOMER_ID is null
+
+

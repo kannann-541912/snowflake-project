@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select TRANSACTION_ID
+from DEMO_DEV.FRAUD_INTELLIGENCE.SLV_FRAUD_FEATURES
+where TRANSACTION_ID is null
+
+

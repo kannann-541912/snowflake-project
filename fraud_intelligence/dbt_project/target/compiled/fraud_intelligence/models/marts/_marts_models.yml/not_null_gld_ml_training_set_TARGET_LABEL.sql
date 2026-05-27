@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select TARGET_LABEL
+from DEMO_DEV.FRAUD_INTELLIGENCE.GLD_ML_TRAINING_SET
+where TARGET_LABEL is null
+
+

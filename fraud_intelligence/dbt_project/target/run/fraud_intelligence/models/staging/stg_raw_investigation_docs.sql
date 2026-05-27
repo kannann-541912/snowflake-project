@@ -1,0 +1,17 @@
+
+  create or replace   view DEMO_DEV.FRAUD_INTELLIGENCE.stg_raw_investigation_docs
+  
+   as (
+    
+
+SELECT
+    DOC_ID,
+    DOC_TITLE,
+    DOC_CONTENT,
+    DOC_CATEGORY,
+    EFFECTIVE_DATE,
+    INGESTED_AT
+FROM DEMO_DEV.FRAUD_INTELLIGENCE.BRZ_RAW_INVESTIGATION_DOCS
+WHERE DOC_ID IS NOT NULL
+  );
+

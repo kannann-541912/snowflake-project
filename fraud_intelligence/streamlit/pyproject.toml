@@ -1,0 +1,8 @@
+[project]
+name = "streamlit-app"
+requires-python = ">= 3.11"
+version = "0.0.1"
+description = "Fraud Intelligence Platform"
+dependencies = [
+    "streamlit[snowflake]>=1.50.0"
+]

@@ -1,0 +1,27 @@
+{{
+    config(
+        materialized='table',
+        alias='GLD_CUSTOMER_PROFILE',
+        tags=['gold']
+    )
+}}
+
+SELECT
+    c.CUSTOMER_ID,
+    c.FULL_NAME,
+    c.RISK_SEGMENT,
+    c.KYC_COMPLETE,
+    c.IS_SYNTHETIC_FLAG,
+    c.IS_MERGER_DUP_FLAG,
+    c.ACCOUNT_COUNT,
+    c.CUSTOMER_TENURE_DAYS,
+    DATEDIFF(DAY, c.CUSTOMER_SINCE, CURRENT_DATE()) AS MIN_ACCOUNT_AGE_DAYS,
+    DATEDIFF(DAY, c.CUSTOMER_SINCE, CURRENT_DATE()) AS MAX_ACCOUNT_AGE_DAYS,
+    COALESCE(alert_counts.PRIOR_ALERT_COUNT, 0) AS PRIOR_ALERT_COUNT,
+    c.INGESTED_AT AS DBT_LOADED_AT
+FROM {{ ref('stg_raw_customers') }} c
+LEFT JOIN (
+    SELECT CUSTOMER_ID, COUNT(*) AS PRIOR_ALERT_COUNT
+    FROM {{ ref('stg_raw_alerts') }}
+    GROUP BY CUSTOMER_ID
+) alert_counts ON c.CUSTOMER_ID = alert_counts.CUSTOMER_ID

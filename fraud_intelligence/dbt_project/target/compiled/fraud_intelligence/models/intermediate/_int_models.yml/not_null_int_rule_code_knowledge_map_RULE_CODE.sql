@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select RULE_CODE
+from DEMO_DEV.FRAUD_INTELLIGENCE.SLV_RULE_CODE_KNOWLEDGE_MAP
+where RULE_CODE is null
+
+

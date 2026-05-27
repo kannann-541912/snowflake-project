@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: gld_alert_enriched
+    description: "Gold layer: enriched alerts ready for investigation"
+    config:
+      tags: ['gold']
+    columns:
+      - name: ALERT_ID
+        tests:
+          - not_null
+          - unique
+      - name: CUSTOMER_ID
+        tests:
+          - not_null
+      - name: ALERT_RISK_SCORE
+        tests:
+          - not_null
+
+  - name: gld_customer_profile
+    description: "Gold layer: customer profile feature store"
+    config:
+      tags: ['gold']
+    columns:
+      - name: CUSTOMER_ID
+        tests:
+          - not_null
+          - unique
+      - name: RISK_SEGMENT
+        tests:
+          - accepted_values:
+              values: ['HIGH', 'MEDIUM', 'LOW', 'CRITICAL']
+
+  - name: gld_velocity_counters
+    description: "Gold layer: real-time velocity feature store"
+    config:
+      tags: ['gold']
+    columns:
+      - name: CUSTOMER_ID
+        tests:
+          - not_null
+          - unique
+
+  - name: gld_ml_training_set
+    description: "Gold layer: curated ML training features"
+    config:
+      tags: ['gold']
+    columns:
+      - name: TRANSACTION_ID
+        tests:
+          - not_null
+      - name: TARGET_LABEL
+        tests:
+          - not_null
+
+  - name: gld_alert_enrichment_with_scoring
+    description: "Gold layer: alert enrichment with composite risk scoring"
+    config:
+      tags: ['gold']
+    columns:
+      - name: ALERT_ID
+        tests:
+          - not_null
+      - name: COMPOSITE_RISK_SCORE
+        tests:
+          - not_null

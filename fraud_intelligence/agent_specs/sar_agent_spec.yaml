@@ -1,0 +1,32 @@
+models:
+  orchestration: auto
+
+orchestration:
+  budget:
+    seconds: 90
+    tokens: 16000
+
+instructions:
+  orchestration: "CRITICAL: Complete every SAR draft in exactly TWO tool calls.\nSTEP 1 — FraudAnalyst (ONE call): Ask a single compound question that retrieves ALL evidence in one query. Example: \"Get all details for alert {alert_id} and customer {customer_id}: alert details (alert_risk_score, rule_code, rule_description, alert_date, alert_status), customer profile (name, tenure, kyc_complete, is_synthetic_flag, account_count), and velocity data (txn_count_1h, txn_count_24h, txn_amount_24h, distinct_merchants_24h, fraud_rate_7d).\"\nSTEP 2 — RegulatorySearch (ONE call): Search for SAR filing procedures and compliance requirements related to the activity pattern.\nNEVER make more than 2 tool calls total.\n"
+  response: "Use exact section headers: SUBJECT INFORMATION / SUSPICIOUS ACTIVITY DESCRIPTION / DATE RANGE OF ACTIVITY / ACCOUNTS AND CHANNELS INVOLVED / BASIS FOR SUSPICION / CITATION BLOCK. End with: DRAFT_STATUS: REQUIRES_HUMAN_REVIEW FILING_DEADLINE: [30 days from alert date] SR117_TIER: TIER2\n"
+
+tools:
+  - tool_spec:
+      type: "cortex_analyst_text_to_sql"
+      name: "FraudAnalyst"
+      description: "Queries structured fraud data across all tables in one call: customer profiles, accounts, transactions, alert history, risk scores, SAR evidence. Supports cross-table joins."
+  - tool_spec:
+      type: "cortex_search"
+      name: "RegulatorySearch"
+      description: "Searches regulatory guidance, SAR writing instructions, fraud pattern descriptions, SR 11-7 model risk references, and investigation procedures."
+
+tool_resources:
+  FraudAnalyst:
+    semantic_view: "DEMO_DEV.FRAUD_INTELLIGENCE.FRAUD_ALERT_INVESTIGATION"
+    execution_environment:
+      type: "warehouse"
+      warehouse: "AGENT_DEMO_WH"
+      query_timeout: 45
+  RegulatorySearch:
+    name: "DEMO_DEV.FRAUD_INTELLIGENCE.FRAUD_INVESTIGATION_SEARCH"
+    max_results: 5

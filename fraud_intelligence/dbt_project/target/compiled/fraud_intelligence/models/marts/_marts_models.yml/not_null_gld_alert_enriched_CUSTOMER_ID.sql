@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select CUSTOMER_ID
+from DEMO_DEV.FRAUD_INTELLIGENCE.GLD_ALERT_ENRICHED
+where CUSTOMER_ID is null
+
+

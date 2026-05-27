@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: int_fraud_features
+    description: "Silver layer: transaction and customer features for fraud detection"
+    config:
+      tags: ['silver']
+    columns:
+      - name: TRANSACTION_ID
+        tests:
+          - not_null
+      - name: CUSTOMER_ID
+        tests:
+          - not_null
+      - name: TRANSACTION_AMOUNT
+        tests:
+          - not_null
+
+  - name: int_investigation_knowledge_base
+    description: "Silver layer: processed investigation knowledge documents"
+    config:
+      tags: ['silver']
+    columns:
+      - name: DOC_ID
+        tests:
+          - not_null
+          - unique
+
+  - name: int_rule_code_knowledge_map
+    description: "Silver layer: detection rule to knowledge base mapping"
+    config:
+      tags: ['silver']
+    columns:
+      - name: RULE_CODE
+        tests:
+          - not_null
+
+  - name: int_fraud_model_metadata
+    description: "Silver layer: ML model metadata and versioning"
+    config:
+      tags: ['silver']
+
+  - name: int_model_performance_log
+    description: "Silver layer: daily model performance metrics"
+    config:
+      tags: ['silver']

@@ -1,0 +1,70 @@
+models:
+  orchestration: auto
+
+orchestration:
+  budget:
+    seconds: 120
+    tokens: 16000
+
+instructions:
+  orchestration: "STRICT TOOL ORDER — You MUST call tools in this exact sequence. Do NOT skip ahead or reorder.\nSTEP 1 (FIRST, MANDATORY): Call FraudScorer with the alert_id. You MUST call FraudScorer BEFORE any other tool. Do NOT call FraudAnalyst or RegulatorySearch until FraudScorer has returned. Use FraudScorerLive instead ONLY when the user message explicitly says to use real-time/live model scoring.\nSTEP 2 (SECOND): After FraudScorer returns, call FraudAnalyst with a single compound question to retrieve ALL data.\nSTEP 3 (THIRD): After FraudAnalyst returns, call RegulatorySearch for compliance guidance.\nNEVER make more than 3 tool calls. NEVER call FraudAnalyst or RegulatorySearch before FraudScorer.\n"
+  response: "Lead with a one-sentence executive summary. Include the ML FRAUD SCORE prominently at the top. DISPOSITION must be exactly one of: ESCALATE_TO_SAR / CONTINUE_MONITORING / CLOSE_FALSE_POSITIVE / REQUEST_MORE_INFO. End with CONFIDENCE_SCORE: [0.0-1.0] and SR117_TIER: TIER2.\n"
+
+tools:
+  - tool_spec:
+      type: "generic"
+      name: "FraudScorer"
+      description: "MUST be called FIRST before any other tool. Fast lookup of pre-computed ML fraud scores. Returns a JSON object with fraud_probability (0-1), risk_tier (CRITICAL/HIGH/MEDIUM/LOW), model_version."
+      input_schema:
+        type: "object"
+        properties:
+          ALERT_ID:
+            type: "string"
+            description: "The alert identifier to score, e.g. ALT000424"
+        required:
+          - "ALERT_ID"
+  - tool_spec:
+      type: "generic"
+      name: "FraudScorerLive"
+      description: "Runs real-time ML model inference against the deployed fraud detection model service. Slower but produces fresh scores. Only use when explicitly instructed to use real-time/live model scoring."
+      input_schema:
+        type: "object"
+        properties:
+          ALERT_ID:
+            type: "string"
+            description: "The alert identifier to score in real-time, e.g. ALT000001"
+        required:
+          - "ALERT_ID"
+  - tool_spec:
+      type: "cortex_analyst_text_to_sql"
+      name: "FraudAnalyst"
+      description: "Queries structured fraud data across all tables in one call: customer profiles, accounts, transactions, alert history, risk scores, SAR evidence. Supports cross-table joins."
+  - tool_spec:
+      type: "cortex_search"
+      name: "RegulatorySearch"
+      description: "Searches regulatory guidance, SAR writing instructions, fraud pattern descriptions, SR 11-7 model risk references, and investigation procedures."
+
+tool_resources:
+  FraudScorer:
+    type: "function"
+    identifier: "DEMO_DEV.FRAUD_INTELLIGENCE.SCORE_TRANSACTION_FAST_V2"
+    execution_environment:
+      type: "warehouse"
+      warehouse: "AGENT_DEMO_WH"
+      query_timeout: 10
+  FraudScorerLive:
+    type: "function"
+    identifier: "DEMO_DEV.FRAUD_INTELLIGENCE.SCORE_TRANSACTION_REALTIME"
+    execution_environment:
+      type: "warehouse"
+      warehouse: "AGENT_DEMO_WH"
+      query_timeout: 15
+  FraudAnalyst:
+    semantic_view: "DEMO_DEV.FRAUD_INTELLIGENCE.FRAUD_ALERT_INVESTIGATION"
+    execution_environment:
+      type: "warehouse"
+      warehouse: "AGENT_DEMO_WH"
+      query_timeout: 45
+  RegulatorySearch:
+    name: "DEMO_DEV.FRAUD_INTELLIGENCE.FRAUD_INVESTIGATION_SEARCH"
+    max_results: 5

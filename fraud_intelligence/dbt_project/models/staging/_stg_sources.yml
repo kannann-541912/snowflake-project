@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: stg_analyst_decisions
+    description: "Staging view for BRZ_ANALYST_DECISIONS — agent-assisted analyst fraud decisions with ML scores, LLM reasoning, and SAR audit trail"
+    config:
+      tags: ['staging']
+    columns:
+      - name: DECISION_ID
+        tests:
+          - not_null
+          - unique
+      - name: CUSTOMER_ID
+        tests:
+          - not_null
+      - name: DECISION
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['CONFIRMED_FRAUD', 'FALSE_POSITIVE', 'ESCALATE_SAR', 'NEEDS_REVIEW']
+
+sources:
+  - name: fraud_intelligence_bronze
+    database: DEMO_DEV
+    schema: FRAUD_INTELLIGENCE
+    description: "Bronze layer - raw ingested data from source systems"
+    tables:
+      - name: BRZ_RAW_TRANSACTIONS
+        description: "Raw transaction events from core banking"
+        columns:
+          - name: TRANSACTION_ID
+            tests:
+              - not_null
+          - name: CUSTOMER_ID
+            tests:
+              - not_null
+          - name: TRANSACTION_AMOUNT
+            tests:
+              - not_null
+
+      - name: BRZ_RAW_ALERTS
+        description: "Raw fraud/AML alerts from detection engine"
+        columns:
+          - name: ALERT_ID
+            tests:
+              - not_null
+              - unique
+          - name: CUSTOMER_ID
+            tests:
+              - not_null
+
+      - name: BRZ_RAW_CUSTOMERS
+        description: "Raw customer master from CRM"
+        columns:
+          - name: CUSTOMER_ID
+            tests:
+              - not_null
+              - unique
+
+      - name: BRZ_RAW_VELOCITY_EVENTS
+        description: "Raw velocity counter events"
+        columns:
+          - name: EVENT_ID
+            tests:
+              - not_null
+          - name: CUSTOMER_ID
+            tests:
+              - not_null
+
+      - name: BRZ_RAW_INVESTIGATION_DOCS
+        description: "Raw investigation procedure documents"
+        columns:
+          - name: DOC_ID
+            tests:
+              - not_null
+              - unique
+
+      - name: BRZ_RAW_RULE_DEFINITIONS
+        description: "Raw detection rule definitions"
+        columns:
+          - name: RULE_CODE
+            tests:
+              - not_null
+
+      - name: BRZ_ANALYST_DECISIONS
+        description: "Agent-assisted analyst fraud decisions with ML scores, LLM reasoning, and SAR filing audit trail"
+        columns:
+          - name: DECISION_ID
+            tests:
+              - not_null
+              - unique
+          - name: ALERT_ID
+            tests:
+              - not_null
+          - name: CUSTOMER_ID
+            tests:
+              - not_null

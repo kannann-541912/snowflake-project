@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select ALERT_RISK_SCORE
+from DEMO_DEV.FRAUD_INTELLIGENCE.GLD_ALERT_ENRICHED
+where ALERT_RISK_SCORE is null
+
+

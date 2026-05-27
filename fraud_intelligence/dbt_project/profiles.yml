@@ -1,0 +1,12 @@
+fraud_intelligence:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: 'xna38553'
+      user: 'not needed'
+      role: AGENT_DEMO_ROLE
+      database: DEMO_DEV
+      warehouse: AGENT_DEMO_WH
+      schema: FRAUD_INTELLIGENCE
+      threads: 4

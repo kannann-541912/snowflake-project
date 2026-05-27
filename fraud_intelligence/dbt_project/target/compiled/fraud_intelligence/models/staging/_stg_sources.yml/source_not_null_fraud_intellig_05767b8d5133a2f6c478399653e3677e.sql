@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select DOC_ID
+from DEMO_DEV.FRAUD_INTELLIGENCE.BRZ_RAW_INVESTIGATION_DOCS
+where DOC_ID is null
+
+

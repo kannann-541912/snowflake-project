@@ -1,0 +1,34 @@
+USE ROLE AGENT_DEMO_ROLE;
+USE WAREHOUSE AGENT_DEMO_WH;
+USE SCHEMA DEMO_DEV.FRAUD_INTELLIGENCE;
+
+CREATE OR REPLACE TASK TASK_FRAUD_ETL_ROOT
+    WAREHOUSE = 'AGENT_DEMO_WH'
+    SCHEDULE = 'USING CRON 0 * * * * UTC'
+    COMMENT = 'Root task for Fraud Intelligence ETL pipeline (Bronze -> Silver -> Gold)'
+AS
+    SELECT 1;
+
+CREATE OR REPLACE TASK TASK_BRZ_TO_SLV_FEATURES
+    WAREHOUSE = 'AGENT_DEMO_WH'
+    AFTER DEMO_DEV.FRAUD_INTELLIGENCE.TASK_FRAUD_ETL_ROOT
+    COMMENT = 'Transform Bronze transactions & customers into Silver feature tables'
+AS
+    EXECUTE DBT PROJECT FRAUD_INTELLIGENCE_DBT
+        ARGS = 'run --select tag:silver --target dev';
+
+CREATE OR REPLACE TASK TASK_SLV_TO_GLD_ENRICHMENT
+    WAREHOUSE = 'AGENT_DEMO_WH'
+    AFTER DEMO_DEV.FRAUD_INTELLIGENCE.TASK_BRZ_TO_SLV_FEATURES
+    COMMENT = 'Transform Silver features into Gold consumption tables'
+AS
+    EXECUTE DBT PROJECT FRAUD_INTELLIGENCE_DBT
+        ARGS = 'run --select tag:gold --target dev';
+
+CREATE OR REPLACE TASK TASK_ETL_QUALITY_CHECK
+    WAREHOUSE = 'AGENT_DEMO_WH'
+    AFTER DEMO_DEV.FRAUD_INTELLIGENCE.TASK_SLV_TO_GLD_ENRICHMENT
+    COMMENT = 'Run dbt tests for data quality validation across all layers'
+AS
+    EXECUTE DBT PROJECT FRAUD_INTELLIGENCE_DBT
+        ARGS = 'test --target dev';

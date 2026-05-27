@@ -1,0 +1,50 @@
+{
+    "path_count": 167,
+    "parsed_path_count": 21,
+    "static_analysis_path_count": 15,
+    "static_analysis_parsed_path_count": 15,
+    "is_partial_parse_enabled": true,
+    "is_static_analysis_enabled": true,
+    "read_files_elapsed": 0.16552229700005228,
+    "load_macros_elapsed": 0.0005431310000858502,
+    "parse_project_elapsed": 0.6846212559999003,
+    "patch_sources_elapsed": 0.03910969499997918,
+    "process_manifest_elapsed": 0.003461323999999877,
+    "load_all_elapsed": 1.1358575839999503,
+    "projects": [
+        {
+            "project_name": "fraud_intelligence",
+            "elapsed": 0.6843758719999187,
+            "parsers": [
+                {
+                    "parser": "model",
+                    "elapsed": 0.2588076429999546,
+                    "parsed_path_count": 15
+                },
+                {
+                    "parser": "test",
+                    "elapsed": 0.1207548750001024,
+                    "parsed_path_count": 3
+                },
+                {
+                    "parser": "test",
+                    "elapsed": 0.3047887920001813,
+                    "parsed_path_count": 3
+                }
+            ],
+            "parsed_path_count": 21
+        },
+        {
+            "project_name": "dbt_snowflake",
+            "elapsed": 0.0,
+            "parsers": [],
+            "parsed_path_count": 0
+        },
+        {
+            "project_name": "dbt",
+            "elapsed": 0.0,
+            "parsers": [],
+            "parsed_path_count": 0
+        }
+    ]
+}

@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select ALERT_ID
+from DEMO_DEV.FRAUD_INTELLIGENCE.GLD_ALERT_ENRICHED
+where ALERT_ID is null
+
+

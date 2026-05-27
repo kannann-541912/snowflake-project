@@ -1,0 +1,22 @@
+{{
+    config(
+        materialized='view',
+        tags=['staging']
+    )
+}}
+
+SELECT
+    EVENT_ID,
+    CUSTOMER_ID,
+    EVENT_TIMESTAMP,
+    TXN_COUNT_1H,
+    TXN_COUNT_24H,
+    TXN_AMOUNT_1H,
+    TXN_AMOUNT_24H,
+    DISTINCT_MERCHANTS_24H,
+    RECENT_TXN_COUNT,
+    RECENT_TXN_AMOUNT,
+    FRAUD_RATE_7D,
+    INGESTED_AT
+FROM {{ source('fraud_intelligence_bronze', 'BRZ_RAW_VELOCITY_EVENTS') }}
+WHERE CUSTOMER_ID IS NOT NULL
