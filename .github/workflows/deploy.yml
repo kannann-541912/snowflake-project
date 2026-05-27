@@ -185,13 +185,13 @@ jobs:
       - name: Bootstrap DCM project (idempotent)
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          # initialize returns non-zero if project already exists — that's fine.
+          # flow init returns non-zero if project already exists — that's fine.
           # But if it fails for another reason (permissions, bad DB), we must know.
-          OUTPUT=$(snow dcm initialize --target ${TARGET} -c ${{ env.SNOW_CONN }} 2>&1) || {
+          OUTPUT=$(snow dcm flow init --target ${TARGET} -c ${{ env.SNOW_CONN }} 2>&1) || {
             if echo "$OUTPUT" | grep -qi "already exists"; then
               echo "DCM project already initialized — continuing."
             else
-              echo "::error::DCM initialize failed: $OUTPUT"
+              echo "::error::DCM init failed: $OUTPUT"
               exit 1
             fi
           }
@@ -200,17 +200,17 @@ jobs:
       - name: DCM Analyze
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          snow dcm raw-analyze --target ${TARGET} -c ${{ env.SNOW_CONN }}
+          snow dcm flow analyze --target ${TARGET} -c ${{ env.SNOW_CONN }}
 
       - name: DCM Plan
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          snow dcm plan --target ${TARGET} -c ${{ env.SNOW_CONN }}
+          snow dcm flow plan --target ${TARGET} -c ${{ env.SNOW_CONN }}
 
       - name: DCM Deploy
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          snow dcm deploy \
+          snow dcm flow deploy \
             --target ${TARGET} \
             -c ${{ env.SNOW_CONN }} \
             --alias "gh-${{ github.sha }}-${{ env.DEPLOY_ENV }}"
