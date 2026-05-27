@@ -18,8 +18,8 @@ AS
 -- Runs after root task, only if the stream has new rows.
 CREATE OR REPLACE TASK SANDBOX.TPCH.MERGE_CUSTOMERS_TASK
     WAREHOUSE = ANALYTICS_WH
-    AFTER     SANDBOX.TPCH.PIPELINE_ROOT_TASK
     COMMENT   = 'Upsert raw customers into SANDBOX.TPCH.CUSTOMERS'
+    AFTER     SANDBOX.TPCH.PIPELINE_ROOT_TASK
     WHEN      SYSTEM$STREAM_HAS_DATA('SANDBOX.TPCH_LANDING.CUSTOMERS_RAW_STREAM')
 AS
     MERGE INTO SANDBOX.TPCH.CUSTOMERS AS tgt
@@ -46,8 +46,8 @@ AS
 -- Task 2: Load raw orders into curated table (append-only stream).
 CREATE OR REPLACE TASK SANDBOX.TPCH.LOAD_ORDERS_TASK
     WAREHOUSE = ANALYTICS_WH
-    AFTER     SANDBOX.TPCH.PIPELINE_ROOT_TASK
     COMMENT   = 'Insert new orders from stream into SANDBOX.TPCH.ORDERS'
+    AFTER     SANDBOX.TPCH.PIPELINE_ROOT_TASK
     WHEN      SYSTEM$STREAM_HAS_DATA('SANDBOX.TPCH_LANDING.ORDERS_RAW_STREAM')
 AS
     INSERT INTO SANDBOX.TPCH.ORDERS
@@ -68,9 +68,9 @@ AS
 -- (runs after both merge and load tasks complete).
 CREATE OR REPLACE TASK SANDBOX.TPCH.REFRESH_SUMMARY_TASK
     WAREHOUSE = ANALYTICS_WH
+    COMMENT   = 'Placeholder for any post-load refresh logic (dynamic tables auto-refresh)'
     AFTER     SANDBOX.TPCH.MERGE_CUSTOMERS_TASK,
               SANDBOX.TPCH.LOAD_ORDERS_TASK
-    COMMENT   = 'Placeholder for any post-load refresh logic (dynamic tables auto-refresh)'
 AS
     SELECT 'Summary refresh complete at ' || CURRENT_TIMESTAMP();
 
