@@ -451,24 +451,28 @@ jobs:
 
       - name: dbt source freshness
         # Warn-only on DEV — clone data may not be fresh
-        run: dbt source freshness --vars '{"source_database": "'${DBT_DB}'"}' || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+        run: |
+          dbt source freshness --vars "{\"source_database\": \"${DBT_DB}\"}" || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
 
       - name: dbt run
-        run: dbt run --target ${{ env.DBT_TARGET }} --vars '{"source_database": "'${DBT_DB}'"}'
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+        run: |
+          dbt run --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
       - name: dbt test
-        run: dbt test --target ${{ env.DBT_TARGET }} --vars '{"source_database": "'${DBT_DB}'"}'
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+        run: |
+          dbt test --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
       - name: dbt snapshot
-        run: dbt snapshot --target ${{ env.DBT_TARGET }} --vars '{"source_database": "'${DBT_DB}'"}'
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+        run: |
+          dbt snapshot --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 7. Streamlit app
