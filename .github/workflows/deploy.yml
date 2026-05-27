@@ -372,6 +372,12 @@ jobs:
         run: |
           export SNOWFLAKE_ACCOUNT="xna38553.east-us-2.azure"
           export SNOWFLAKE_USER="MCP_SERVICE_USER"
+          # Use clone DB for DEV, SANDBOX for PROD
+          if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
+            export SNOWFLAKE_DATABASE="SANDBOX"
+          else
+            export SNOWFLAKE_DATABASE="${{ needs.clone-db.outputs.clone_db }}"
+          fi
           python ingestion/snowpark/transforms.py
 
       - name: Deploy Openflow flows to SPCS runtime
