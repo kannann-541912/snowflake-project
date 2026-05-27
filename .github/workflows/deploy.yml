@@ -334,9 +334,7 @@ jobs:
         run: |
           CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
           # Replace all fully-qualified SANDBOX. references in ingestion SQL
-          for f in ingestion/snowflake/stages.sql \
-                   ingestion/snowflake/streams.sql \
-                   ingestion/snowflake/tasks.sql; do
+          for f in ingestion/snowflake/tasks.sql; do
             sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
             echo "Patched $f → ${CLONE_DB}"
           done
@@ -351,12 +349,6 @@ jobs:
               ENABLED = TRUE
               STORAGE_ALLOWED_LOCATIONS = ('s3://your-data-bucket/');
           " -c ${{ env.SNOW_CONN }}
-
-      - name: Deploy stages and file formats
-        run: snow sql -f ingestion/snowflake/stages.sql -c ${{ env.SNOW_CONN }}
-
-      - name: Deploy streams and landing tables
-        run: snow sql -f ingestion/snowflake/streams.sql -c ${{ env.SNOW_CONN }}
 
       - name: Deploy Snowflake Task DAG
         run: snow sql -f ingestion/snowflake/tasks.sql -c ${{ env.SNOW_CONN }}
