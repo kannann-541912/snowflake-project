@@ -185,7 +185,17 @@ jobs:
       - name: Bootstrap DCM project (idempotent)
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          snow dcm initialize --target ${TARGET} -c ${{ env.SNOW_CONN }} || true
+          # initialize returns non-zero if project already exists — that's fine.
+          # But if it fails for another reason (permissions, bad DB), we must know.
+          OUTPUT=$(snow dcm initialize --target ${TARGET} -c ${{ env.SNOW_CONN }} 2>&1) || {
+            if echo "$OUTPUT" | grep -qi "already exists"; then
+              echo "DCM project already initialized — continuing."
+            else
+              echo "::error::DCM initialize failed: $OUTPUT"
+              exit 1
+            fi
+          }
+          echo "$OUTPUT"
 
       - name: DCM Analyze
         run: |

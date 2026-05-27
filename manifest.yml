@@ -6,10 +6,12 @@ targets:
   DEV:
     project_name: 'SANDBOX.TPCH.DATA_PLATFORM_DEV'
     project_owner: ACCOUNTADMIN
+    account_identifier: 'xna38553'
     templating_config: 'DEV'
   PROD:
     project_name: 'SANDBOX.TPCH.DATA_PLATFORM'
     project_owner: ACCOUNTADMIN
+    account_identifier: 'xna38553'
     templating_config: 'PROD'
   # CI target — database name is SANDBOX_CI (placeholder).
   # In CI the deploy workflow replaces SANDBOX_CI with the actual
@@ -17,6 +19,7 @@ targets:
   CI:
     project_name: 'SANDBOX_CI.TPCH.DATA_PLATFORM_CI'
     project_owner: ACCOUNTADMIN
+    account_identifier: 'xna38553'
     templating_config: 'DEV'
 
 templating:
