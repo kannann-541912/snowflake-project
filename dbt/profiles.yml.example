@@ -10,7 +10,7 @@ tpch_data_platform:
     dev:
       type: snowflake
       account: A5701997473071-MPA05784
-      user: DBT_DEV_SERVICE_USER
+      user: "MCP_SERVICE_USER"
       authenticator: programmatic_access_token
       token: "{{ env_var('SNOWFLAKE_PAT') }}"
       role: ACCOUNTADMIN
