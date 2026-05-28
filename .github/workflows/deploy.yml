@@ -416,6 +416,8 @@ jobs:
         run: pip install dbt-snowflake
 
       - name: Write dbt profiles
+        env: 
+          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
         run: |
           mkdir -p ~/.dbt
           # DEV: deploy into clone DB (schema TPCH_DEV)
