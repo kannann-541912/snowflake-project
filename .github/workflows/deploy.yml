@@ -485,178 +485,178 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   # 7. Streamlit app
   # ─────────────────────────────────────────────────────────────────────────────
-  deploy-streamlit:
-    name: Deploy Streamlit Apps
-    needs: deploy-dbt
-    if: always() && needs.deploy-dbt.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Snowflake CLI
-        run: pip install snowflake-cli
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
-          EOF
-
-      - name: List discovered apps
-        run: python streamlit/deploy_all.py --list
-
-      - name: Deploy all Streamlit apps
-        run: python streamlit/deploy_all.py -c ${{ env.SNOW_CONN }}
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 8. Cortex Agent
-  # ─────────────────────────────────────────────────────────────────────────────
-  deploy-agent:
-    name: Deploy Cortex Agent
-    needs: deploy-dbt
-    if: always() && needs.deploy-dbt.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Snowflake CLI
-        run: pip install snowflake-cli
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
-          EOF
-
-      - name: List discovered agents
-        run: python agent/deploy_all.py --list
-
-      - name: Deploy all Cortex Agents
-        run: python agent/deploy_all.py -c ${{ env.SNOW_CONN }}
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 9. Agent evals — post-deploy smoke test
-  # ─────────────────────────────────────────────────────────────────────────────
-  run-agent-evals:
-    name: Agent Evaluation Suite
-    needs: deploy-agent
-    if: always() && needs.deploy-agent.result == 'success' && inputs.skip_evals != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install eval dependencies
-        run: pip install snowflake-connector-python pyyaml
-
-      - name: Run evaluation suites for all agents
-        env:
-          SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
-          SNOWFLAKE_USER:    "MCP_SERVICE_USER"
-          SNOWFLAKE_PAT:     ${{ secrets.SNOWFLAKE_PAT }}
-        run: python agent/run_evals.py --all
-
-      - name: Upload eval results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-eval-results-${{ github.sha }}-${{ env.DEPLOY_ENV }}
-          path: agent/agents/**/evals/results/
-          retention-days: 30
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 10. Cleanup — drop branch clone (DEV only, skipped if keep_clone=true)
-  # ─────────────────────────────────────────────────────────────────────────────
-  cleanup-clone:
-    name: Drop Branch Clone DB
-    needs: [clone-db, deploy-dcm, deploy-ml-models, deploy-ingestion, deploy-dbt, deploy-streamlit, deploy-agent, run-agent-evals]
-    # Run even if earlier jobs failed so clone is always cleaned up.
-    # Skip for: PROD deploys | keep_clone=true | clone-db was skipped
-    if: >-
-      always() &&
-      github.event_name == 'workflow_dispatch' &&
-      inputs.environment == 'DEV' &&
-      needs.clone-db.result == 'success' &&
-      inputs.keep_clone != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Snowflake CLI
-        run: pip install snowflake-cli
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.dev]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
-          EOF
-
-      - name: Drop branch clone database
-        run: |
-          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          snow sql -q "DROP DATABASE IF EXISTS ${CLONE_DB};" -c dev
-          echo "Dropped clone: ${CLONE_DB}"
-
-          echo "## Cleanup" >> $GITHUB_STEP_SUMMARY
-          echo "Clone database \`${CLONE_DB}\` has been dropped." >> $GITHUB_STEP_SUMMARY
-
-      - name: Keep-clone notice (skipped cleanup)
-        if: inputs.keep_clone == 'true'
-        run: |
-          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          echo "## Clone Retained" >> $GITHUB_STEP_SUMMARY
-          echo "Clone \`${CLONE_DB}\` was kept for inspection." >> $GITHUB_STEP_SUMMARY
-          echo "Drop it manually when done:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`sql" >> $GITHUB_STEP_SUMMARY
-          echo "DROP DATABASE IF EXISTS ${CLONE_DB};" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+#  deploy-streamlit:
+#    name: Deploy Streamlit Apps
+#    needs: deploy-dbt
+#    if: always() && needs.deploy-dbt.result == 'success'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install Snowflake CLI
+#        run: pip install snowflake-cli
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.${{ env.SNOW_CONN }}]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "MCP_SERVICE_USER"
+#          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+#          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "ACCOUNTADMIN"
+#          EOF
+#
+#      - name: List discovered apps
+#        run: python streamlit/deploy_all.py --list
+#
+#      - name: Deploy all Streamlit apps
+#        run: python streamlit/deploy_all.py -c ${{ env.SNOW_CONN }}
+#
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  # 8. Cortex Agent
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  deploy-agent:
+#    name: Deploy Cortex Agent
+#    needs: deploy-dbt
+#    if: always() && needs.deploy-dbt.result == 'success'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install Snowflake CLI
+#        run: pip install snowflake-cli
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.${{ env.SNOW_CONN }}]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "MCP_SERVICE_USER"
+#          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+#          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "ACCOUNTADMIN"
+#          EOF
+#
+#      - name: List discovered agents
+#        run: python agent/deploy_all.py --list
+#
+#      - name: Deploy all Cortex Agents
+#        run: python agent/deploy_all.py -c ${{ env.SNOW_CONN }}
+#
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  # 9. Agent evals — post-deploy smoke test
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  run-agent-evals:
+#    name: Agent Evaluation Suite
+#    needs: deploy-agent
+#    if: always() && needs.deploy-agent.result == 'success' && inputs.skip_evals != 'true'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install eval dependencies
+#        run: pip install snowflake-connector-python pyyaml
+#
+#      - name: Run evaluation suites for all agents
+#        env:
+#          SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
+#          SNOWFLAKE_USER:    "MCP_SERVICE_USER"
+#          SNOWFLAKE_PAT:     ${{ secrets.SNOWFLAKE_PAT }}
+#        run: python agent/run_evals.py --all
+#
+#      - name: Upload eval results
+#        if: always()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: agent-eval-results-${{ github.sha }}-${{ env.DEPLOY_ENV }}
+#          path: agent/agents/**/evals/results/
+#          retention-days: 30
+#
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  # 10. Cleanup — drop branch clone (DEV only, skipped if keep_clone=true)
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  cleanup-clone:
+#    name: Drop Branch Clone DB
+#    needs: [clone-db, deploy-dcm, deploy-ml-models, deploy-ingestion, deploy-dbt, deploy-streamlit, deploy-agent, run-agent-evals]
+#    # Run even if earlier jobs failed so clone is always cleaned up.
+#    # Skip for: PROD deploys | keep_clone=true | clone-db was skipped
+#    if: >-
+#      always() &&
+#      github.event_name == 'workflow_dispatch' &&
+#      inputs.environment == 'DEV' &&
+#      needs.clone-db.result == 'success' &&
+#      inputs.keep_clone != 'true'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install Snowflake CLI
+#        run: pip install snowflake-cli
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.dev]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "MCP_SERVICE_USER"
+#          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+#          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "ACCOUNTADMIN"
+#          EOF
+#
+#      - name: Drop branch clone database
+#        run: |
+#          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
+#          snow sql -q "DROP DATABASE IF EXISTS ${CLONE_DB};" -c dev
+#          echo "Dropped clone: ${CLONE_DB}"
+#
+#          echo "## Cleanup" >> $GITHUB_STEP_SUMMARY
+#          echo "Clone database \`${CLONE_DB}\` has been dropped." >> $GITHUB_STEP_SUMMARY
+#
+#      - name: Keep-clone notice (skipped cleanup)
+#        if: inputs.keep_clone == 'true'
+#        run: |
+#          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
+#          echo "## Clone Retained" >> $GITHUB_STEP_SUMMARY
+#          echo "Clone \`${CLONE_DB}\` was kept for inspection." >> $GITHUB_STEP_SUMMARY
+#          echo "Drop it manually when done:" >> $GITHUB_STEP_SUMMARY
+#          echo "\`\`\`sql" >> $GITHUB_STEP_SUMMARY
+#          echo "DROP DATABASE IF EXISTS ${CLONE_DB};" >> $GITHUB_STEP_SUMMARY
+#          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
