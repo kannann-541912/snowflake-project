@@ -31,7 +31,7 @@ on:
 env:
   SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
   SNOWFLAKE_USER:    "MCP_SERVICE_USER"
-  SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
+  SNOWFLAKE_PAT: "eyJraWQiOiIyMTAwNjI5ODU4MTMxOTgyIiwiYWxnIjoiRVMyNTYifQ.eyJwIjoiMzIwNTMwODA0MjU6MzIwNTMwNzIyNjUiLCJpc3MiOiJTRjoyMDE3IiwiZXhwIjoxNzgyNTUzOTEwfQ.UXevzs2JfQumcM5Cs_jXdKJ93f6MRsT_ksv8lArAt0q7sW38JWtaX42Buz24YxxvK8TqUvNScTbL69m8lD13jg"
   DEPLOY_ENV:  ${{ github.event_name == 'push' && 'PROD' || inputs.environment }}
   SNOW_CONN:   ${{ (github.event_name == 'push' || inputs.environment == 'PROD') && 'prod' || 'dev' }}
   DBT_TARGET:  ${{ (github.event_name == 'push' || inputs.environment == 'PROD') && 'prod' || 'dev' }}
