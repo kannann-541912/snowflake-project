@@ -438,7 +438,7 @@ jobs:
                 account: "A5701997473071-MPA05784"
                 user: "MCP_SERVICE_USER"
                 authenticator: "PROGRAMMATIC_ACCESS_TOKEN"
-                token: "${{ secrets.SNOWFLAKE_PAT }}"
+                token: "{{ env_var('SNOWFLAKE_PAT') }}"
                 role: ACCOUNTADMIN
                 database: ${DBT_DB}
                 warehouse: ANALYTICS_WH
