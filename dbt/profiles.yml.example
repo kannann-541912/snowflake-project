@@ -11,7 +11,7 @@ tpch_data_platform:
       type: snowflake
       account: "xna38553.east-us-2.azure"
       user: "MCP_SERVICE_USER"
-      password: "{{ env_var('SNOWFLAKE_PAT') }}"
+      password: "{{ env_var('SNOWFLAKE_PAT_1') }}"
       role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
@@ -24,7 +24,7 @@ tpch_data_platform:
       type: snowflake
       account: "xna38553.east-us-2.azure"
       user: "MCP_SERVICE_USER"
-      password: "{{ env_var('SNOWFLAKE_PAT') }}"
+      password: "{{ env_var('SNOWFLAKE_PAT_1') }}"
       role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
@@ -37,7 +37,7 @@ tpch_data_platform:
       type: snowflake
       account: "xna38553.east-us-2.azure"
       user: "MCP_SERVICE_USER"
-      password: "{{ env_var('SNOWFLAKE_PAT') }}"
+      password: "{{ env_var('SNOWFLAKE_PAT_1') }}"
       role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
