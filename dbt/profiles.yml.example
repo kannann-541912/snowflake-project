@@ -12,7 +12,7 @@ tpch_data_platform:
       account: "xna38553.east-us-2.azure"
       user: "MCP_SERVICE_USER"
       password: "{{ env_var('SNOWFLAKE_PAT') }}"
-                role: ACCOUNTADMIN
+      role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: TPCH_DEV
@@ -25,7 +25,7 @@ tpch_data_platform:
       account: "xna38553.east-us-2.azure"
       user: "MCP_SERVICE_USER"
       password: "{{ env_var('SNOWFLAKE_PAT') }}"
-                role: ACCOUNTADMIN
+      role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: TPCH
@@ -38,7 +38,7 @@ tpch_data_platform:
       account: "xna38553.east-us-2.azure"
       user: "MCP_SERVICE_USER"
       password: "{{ env_var('SNOWFLAKE_PAT') }}"
-                role: ACCOUNTADMIN
+      role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: "TPCH_CI_{{ env_var('CI_RUN_ID', 'local') }}"
