@@ -12,7 +12,7 @@ tpch_data_platform:
       account: A5701997473071-MPA05784
       user: DBT_DEV_SERVICE_USER
       authenticator: oauth
-      token: "{{ env_var('SNOWFLAKE_PAT_2') }}"
+      token: "{{ env_var('SNOWFLAKE_PAT_1') }}"
       role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
