@@ -420,11 +420,12 @@ jobs:
           mkdir -p ~/.dbt
           # DEV: deploy into clone DB (schema TPCH_DEV)
           # PROD: deploy into SANDBOX (schema TPCH)
+          # FORCE DBT TO USE THE ACTUAL DB (SANDBOX) INSTEAD OF THE CLONE
+          DBT_DB="SANDBOX"
+          
           if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
-            DBT_DB="SANDBOX"
             DBT_SCHEMA="TPCH"
           else
-            DBT_DB="${{ needs.clone-db.outputs.clone_db }}"
             DBT_SCHEMA="TPCH_DEV"
           fi
 
