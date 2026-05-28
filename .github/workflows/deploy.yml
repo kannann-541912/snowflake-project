@@ -31,6 +31,7 @@ on:
 env:
   SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
   SNOWFLAKE_USER:    "MCP_SERVICE_USER"
+  SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
   DEPLOY_ENV:  ${{ github.event_name == 'push' && 'PROD' || inputs.environment }}
   SNOW_CONN:   ${{ (github.event_name == 'push' || inputs.environment == 'PROD') && 'prod' || 'dev' }}
   DBT_TARGET:  ${{ (github.event_name == 'push' || inputs.environment == 'PROD') && 'prod' || 'dev' }}
