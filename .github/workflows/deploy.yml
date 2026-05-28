@@ -465,6 +465,7 @@ jobs:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
         run: |
           cat ~/.dbt/profiles.yml
+          grep -v token ~/.dbt/profiles.yml
           dbt debug
 
       - name: dbt run
