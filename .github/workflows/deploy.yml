@@ -435,7 +435,7 @@ jobs:
             outputs:
               ${{ env.DBT_TARGET }}:
                 type: snowflake
-                account: "xna38553.east-us-2.azure"
+                account: "A5701997473071-MPA05784"
                 user: "MCP_SERVICE_USER"
                 authenticator: "PROGRAMMATIC_ACCESS_TOKEN"
                 token: "${{ secrets.SNOWFLAKE_PAT }}"
@@ -460,7 +460,9 @@ jobs:
       - name: dbt debug
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
-        run: dbt debug --target ${{ env.DBT_TARGET }}
+        run: |
+          cat ~/.dbt/profiles.yml
+          dbt debug
 
       - name: dbt run
         env:
