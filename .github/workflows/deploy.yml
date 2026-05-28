@@ -135,264 +135,264 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   # 2. DCM — deploy schema objects
   # ─────────────────────────────────────────────────────────────────────────────
-  deploy-dcm:
-    name: Deploy DCM Objects
-    needs: [guard, clone-db]
-    # clone-db is skipped for PROD; 'skipped' counts as success for needs
-    if: always() && needs.guard.result == 'success' && (needs.clone-db.result == 'success' || needs.clone-db.result == 'skipped')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Snowflake CLI
-        run: pip install snowflake-cli
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
-          EOF
-
-      # ── DEV: patch manifest.yml to point CI target at the branch clone ──────
-      - name: Patch manifest.yml for CI clone (DEV only)
-        if: env.DEPLOY_ENV == 'DEV'
-        run: |
-          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          # Replace the SANDBOX_CI placeholder with the actual branch clone name
-          sed -i "s/SANDBOX_CI/${CLONE_DB}/g" manifest.yml
-          echo "Patched manifest.yml — CI target now points to: ${CLONE_DB}"
-          grep "project_name" manifest.yml
-
-      - name: Patch DCM definition files for CI clone (DEV only)
-        if: env.DEPLOY_ENV == 'DEV'
-        run: |
-          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          # Repoint all SANDBOX. references in definition files to the clone DB
-          for f in sources/definitions/*.sql; do
-            sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
-            echo "Patched $f → ${CLONE_DB}"
-          done
-
-      # ── Bootstrap: initialize project on first deploy if it doesn't exist ───
-      # snow dcm deploy requires the DCM project to already be registered in
-      # Snowflake. This step creates it idempotently so subsequent runs are safe.
-      - name: Bootstrap DCM project (idempotent)
-        run: |
-          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          # create returns non-zero if project already exists — that's fine.
-          # But if it fails for another reason (permissions, bad DB), we must know.
-          OUTPUT=$(snow dcm create --target ${TARGET} -c ${{ env.SNOW_CONN }} 2>&1) || {
-            if echo "$OUTPUT" | grep -qi "already exists"; then
-              echo "DCM project already initialized — continuing."
-            else
-              echo "::error::DCM create failed: $OUTPUT"
-              exit 1
-            fi
-          }
-          echo "$OUTPUT"
-
-      - name: DCM Plan
-        run: |
-          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          snow dcm plan --target ${TARGET} -c ${{ env.SNOW_CONN }}
-
-      - name: DCM Deploy
-        run: |
-          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          snow dcm deploy \
-            --target ${TARGET} \
-            -c ${{ env.SNOW_CONN }} \
-            --alias "gh-${{ github.sha }}-${{ env.DEPLOY_ENV }}"
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 3. ML Models — MLOps foundation objects (registry, lineage, monitoring)
-  # ─────────────────────────────────────────────────────────────────────────────
-  deploy-ml-models:
-    name: Deploy ML Model Foundation
-    needs: [deploy-dcm, clone-db]
-    if: always() && needs.deploy-dcm.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Snowflake CLI
-        run: pip install snowflake-cli
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
-          EOF
-
-      - name: Resolve target ML database for environment
-        id: ml-db
-        run: |
-          if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
-            echo "ml_database=ML_PROD" >> $GITHUB_OUTPUT
-          else
-            echo "ml_database=ML_DEV" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Patch SQL scripts for target environment
-        run: |
-          ML_DB="${{ steps.ml-db.outputs.ml_database }}"
-          for f in custom-ml-models/snowflake/sql/*.sql; do
-            sed -i "s/ML_PROD/${ML_DB}/g" "$f"
-            echo "Patched $f → ${ML_DB}"
-          done
-
-      - name: Apply foundation SQL (001 — registry and deployment events)
-        run: snow sql -f custom-ml-models/snowflake/sql/001_setup_mlops_foundation.sql -c ${{ env.SNOW_CONN }}
-
-      - name: Apply foundation SQL (002 — lineage, approvals, active model view)
-        run: snow sql -f custom-ml-models/snowflake/sql/002_model_registry_and_lineage.sql -c ${{ env.SNOW_CONN }}
-
-      - name: Apply foundation SQL (003 — prediction log, health view, alert pattern)
-        run: snow sql -f custom-ml-models/snowflake/sql/003_monitoring_views_and_alerts.sql -c ${{ env.SNOW_CONN }}
-
-      - name: Summarise ML foundation deployment
-        run: |
-          ML_DB="${{ steps.ml-db.outputs.ml_database }}"
-          echo "## ML Model Foundation" >> $GITHUB_STEP_SUMMARY
-          echo "| Script | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 001_setup_mlops_foundation.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 002_model_registry_and_lineage.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 003_monitoring_views_and_alerts.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 5. Ingestion — stages, streams, tasks, Openflow flows
-  # ─────────────────────────────────────────────────────────────────────────────
-  deploy-ingestion:
-    name: Deploy Ingestion Objects
-    needs: [deploy-dcm, clone-db]
-    if: always() && needs.deploy-dcm.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install snowflake-cli snowflake-snowpark-python nipyapi
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
-          EOF
-
-      # ── DEV: repoint all SQL files to the branch clone database ─────────────
-      - name: Repoint ingestion SQL to branch clone (DEV only)
-        if: env.DEPLOY_ENV == 'DEV'
-        run: |
-          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          # Replace all fully-qualified SANDBOX. references in ingestion SQL
-          for f in ingestion/snowflake/streams.sql \
-                   ingestion/snowflake/tasks.sql; do
-            sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
-            echo "Patched $f → ${CLONE_DB}"
-          done
-
-      - name: Ensure storage integration exists (test pipeline)
-        run: |
-          snow sql -q "
-            CREATE STORAGE INTEGRATION IF NOT EXISTS TPCH_S3_INTEGRATION
-              TYPE = EXTERNAL_STAGE
-              STORAGE_PROVIDER = 'S3'
-              STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::000000000000:role/placeholder-role'
-              ENABLED = TRUE
-              STORAGE_ALLOWED_LOCATIONS = ('s3://your-data-bucket/');
-          " -c ${{ env.SNOW_CONN }}
-
-      - name: Deploy streams
-        run: snow sql -f ingestion/snowflake/streams.sql -c ${{ env.SNOW_CONN }}
-
-      - name: Deploy Snowflake Task DAG
-        run: snow sql -f ingestion/snowflake/tasks.sql -c ${{ env.SNOW_CONN }}
-
-      - name: Resume tasks
-        run: |
-          # Use clone DB for DEV, SANDBOX for PROD
-          DB=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "SANDBOX" || echo "${{ needs.clone-db.outputs.clone_db }}" )
-          snow sql -q "ALTER TASK ${DB}.TPCH.REFRESH_SUMMARY_TASK RESUME;" -c ${{ env.SNOW_CONN }}
-          snow sql -q "ALTER TASK ${DB}.TPCH.LOAD_ORDERS_TASK RESUME;"     -c ${{ env.SNOW_CONN }}
-          snow sql -q "ALTER TASK ${DB}.TPCH.MERGE_CUSTOMERS_TASK RESUME;" -c ${{ env.SNOW_CONN }}
-          snow sql -q "ALTER TASK ${DB}.TPCH.PIPELINE_ROOT_TASK RESUME;"   -c ${{ env.SNOW_CONN }}
-
-      - name: Deploy Snowpark stored procedures
-        env:
-          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
-        run: |
-          export SNOWFLAKE_ACCOUNT="xna38553.east-us-2.azure"
-          export SNOWFLAKE_USER="MCP_SERVICE_USER"
-          # Use clone DB for DEV, SANDBOX for PROD
-          if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
-            export SNOWFLAKE_DATABASE="SANDBOX"
-          else
-            export SNOWFLAKE_DATABASE="${{ needs.clone-db.outputs.clone_db }}"
-          fi
-          python ingestion/snowpark/transforms.py
-
-      - name: Deploy Openflow flows to SPCS runtime
-        env:
-          OPENFLOW_RUNTIME_URL: ${{ secrets.OPENFLOW_RUNTIME_URL }}
-          S3_BUCKET: ${{ secrets.S3_BUCKET }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          if [ -z "$OPENFLOW_RUNTIME_URL" ]; then
-            echo "OPENFLOW_RUNTIME_URL not set — running in dry-run mode to validate flow configs."
-            python ingestion/openflow/flows/deploy_all_flows.py --dry-run
-          else
-            python ingestion/openflow/flows/deploy_all_flows.py
-          fi
-
+#  deploy-dcm:
+#    name: Deploy DCM Objects
+#    needs: [guard, clone-db]
+#    # clone-db is skipped for PROD; 'skipped' counts as success for needs
+#    if: always() && needs.guard.result == 'success' && (needs.clone-db.result == 'success' || needs.clone-db.result == 'skipped')
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install Snowflake CLI
+#        run: pip install snowflake-cli
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.${{ env.SNOW_CONN }}]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "MCP_SERVICE_USER"
+#          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+#          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "ACCOUNTADMIN"
+#          EOF
+#
+#      # ── DEV: patch manifest.yml to point CI target at the branch clone ──────
+#      - name: Patch manifest.yml for CI clone (DEV only)
+#        if: env.DEPLOY_ENV == 'DEV'
+#        run: |
+#          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
+#          # Replace the SANDBOX_CI placeholder with the actual branch clone name
+#          sed -i "s/SANDBOX_CI/${CLONE_DB}/g" manifest.yml
+#          echo "Patched manifest.yml — CI target now points to: ${CLONE_DB}"
+#          grep "project_name" manifest.yml
+#
+#      - name: Patch DCM definition files for CI clone (DEV only)
+#        if: env.DEPLOY_ENV == 'DEV'
+#        run: |
+#          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
+#          # Repoint all SANDBOX. references in definition files to the clone DB
+#          for f in sources/definitions/*.sql; do
+#            sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
+#            echo "Patched $f → ${CLONE_DB}"
+#          done
+#
+#      # ── Bootstrap: initialize project on first deploy if it doesn't exist ───
+#      # snow dcm deploy requires the DCM project to already be registered in
+#      # Snowflake. This step creates it idempotently so subsequent runs are safe.
+#      - name: Bootstrap DCM project (idempotent)
+#        run: |
+#          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
+#          # create returns non-zero if project already exists — that's fine.
+#          # But if it fails for another reason (permissions, bad DB), we must know.
+#          OUTPUT=$(snow dcm create --target ${TARGET} -c ${{ env.SNOW_CONN }} 2>&1) || {
+#            if echo "$OUTPUT" | grep -qi "already exists"; then
+#              echo "DCM project already initialized — continuing."
+#            else
+#              echo "::error::DCM create failed: $OUTPUT"
+#              exit 1
+#            fi
+#          }
+#          echo "$OUTPUT"
+#
+#      - name: DCM Plan
+#        run: |
+#          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
+#          snow dcm plan --target ${TARGET} -c ${{ env.SNOW_CONN }}
+#
+#      - name: DCM Deploy
+#        run: |
+#          TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
+#          snow dcm deploy \
+#            --target ${TARGET} \
+#            -c ${{ env.SNOW_CONN }} \
+#            --alias "gh-${{ github.sha }}-${{ env.DEPLOY_ENV }}"
+#
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  # 3. ML Models — MLOps foundation objects (registry, lineage, monitoring)
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  deploy-ml-models:
+#    name: Deploy ML Model Foundation
+#    needs: [deploy-dcm, clone-db]
+#    if: always() && needs.deploy-dcm.result == 'success'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install Snowflake CLI
+#        run: pip install snowflake-cli
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.${{ env.SNOW_CONN }}]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "MCP_SERVICE_USER"
+#          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+#          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "ACCOUNTADMIN"
+#          EOF
+#
+#      - name: Resolve target ML database for environment
+#        id: ml-db
+#        run: |
+#          if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
+#            echo "ml_database=ML_PROD" >> $GITHUB_OUTPUT
+#          else
+#            echo "ml_database=ML_DEV" >> $GITHUB_OUTPUT
+#          fi
+#
+#      - name: Patch SQL scripts for target environment
+#        run: |
+#          ML_DB="${{ steps.ml-db.outputs.ml_database }}"
+#          for f in custom-ml-models/snowflake/sql/*.sql; do
+#            sed -i "s/ML_PROD/${ML_DB}/g" "$f"
+#            echo "Patched $f → ${ML_DB}"
+#          done
+#
+#      - name: Apply foundation SQL (001 — registry and deployment events)
+#        run: snow sql -f custom-ml-models/snowflake/sql/001_setup_mlops_foundation.sql -c ${{ env.SNOW_CONN }}
+#
+#      - name: Apply foundation SQL (002 — lineage, approvals, active model view)
+#        run: snow sql -f custom-ml-models/snowflake/sql/002_model_registry_and_lineage.sql -c ${{ env.SNOW_CONN }}
+#
+#      - name: Apply foundation SQL (003 — prediction log, health view, alert pattern)
+#        run: snow sql -f custom-ml-models/snowflake/sql/003_monitoring_views_and_alerts.sql -c ${{ env.SNOW_CONN }}
+#
+#      - name: Summarise ML foundation deployment
+#        run: |
+#          ML_DB="${{ steps.ml-db.outputs.ml_database }}"
+#          echo "## ML Model Foundation" >> $GITHUB_STEP_SUMMARY
+#          echo "| Script | Status |" >> $GITHUB_STEP_SUMMARY
+#          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+#          echo "| 001_setup_mlops_foundation.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
+#          echo "| 002_model_registry_and_lineage.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
+#          echo "| 003_monitoring_views_and_alerts.sql | deployed to \`${ML_DB}.MLOPS\` |" >> $GITHUB_STEP_SUMMARY
+#
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  # 5. Ingestion — stages, streams, tasks, Openflow flows
+#  # ─────────────────────────────────────────────────────────────────────────────
+#  deploy-ingestion:
+#    name: Deploy Ingestion Objects
+#    needs: [deploy-dcm, clone-db]
+#    if: always() && needs.deploy-dcm.result == 'success'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install dependencies
+#        run: pip install snowflake-cli snowflake-snowpark-python nipyapi
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.${{ env.SNOW_CONN }}]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "MCP_SERVICE_USER"
+#          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
+#          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "ACCOUNTADMIN"
+#          EOF
+#
+#      # ── DEV: repoint all SQL files to the branch clone database ─────────────
+#      - name: Repoint ingestion SQL to branch clone (DEV only)
+#        if: env.DEPLOY_ENV == 'DEV'
+#        run: |
+#          CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
+#          # Replace all fully-qualified SANDBOX. references in ingestion SQL
+#          for f in ingestion/snowflake/streams.sql \
+#                   ingestion/snowflake/tasks.sql; do
+#            sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
+#            echo "Patched $f → ${CLONE_DB}"
+#          done
+#
+#      - name: Ensure storage integration exists (test pipeline)
+#        run: |
+#          snow sql -q "
+#            CREATE STORAGE INTEGRATION IF NOT EXISTS TPCH_S3_INTEGRATION
+#              TYPE = EXTERNAL_STAGE
+#              STORAGE_PROVIDER = 'S3'
+#              STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::000000000000:role/placeholder-role'
+#              ENABLED = TRUE
+#              STORAGE_ALLOWED_LOCATIONS = ('s3://your-data-bucket/');
+#          " -c ${{ env.SNOW_CONN }}
+#
+#      - name: Deploy streams
+#        run: snow sql -f ingestion/snowflake/streams.sql -c ${{ env.SNOW_CONN }}
+#
+#      - name: Deploy Snowflake Task DAG
+#        run: snow sql -f ingestion/snowflake/tasks.sql -c ${{ env.SNOW_CONN }}
+#
+#      - name: Resume tasks
+#        run: |
+#          # Use clone DB for DEV, SANDBOX for PROD
+#          DB=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "SANDBOX" || echo "${{ needs.clone-db.outputs.clone_db }}" )
+#          snow sql -q "ALTER TASK ${DB}.TPCH.REFRESH_SUMMARY_TASK RESUME;" -c ${{ env.SNOW_CONN }}
+#          snow sql -q "ALTER TASK ${DB}.TPCH.LOAD_ORDERS_TASK RESUME;"     -c ${{ env.SNOW_CONN }}
+#          snow sql -q "ALTER TASK ${DB}.TPCH.MERGE_CUSTOMERS_TASK RESUME;" -c ${{ env.SNOW_CONN }}
+#          snow sql -q "ALTER TASK ${DB}.TPCH.PIPELINE_ROOT_TASK RESUME;"   -c ${{ env.SNOW_CONN }}
+#
+#      - name: Deploy Snowpark stored procedures
+#        env:
+#          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
+#        run: |
+#          export SNOWFLAKE_ACCOUNT="xna38553.east-us-2.azure"
+#          export SNOWFLAKE_USER="MCP_SERVICE_USER"
+#          # Use clone DB for DEV, SANDBOX for PROD
+#          if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
+#            export SNOWFLAKE_DATABASE="SANDBOX"
+#          else
+#            export SNOWFLAKE_DATABASE="${{ needs.clone-db.outputs.clone_db }}"
+#          fi
+#          python ingestion/snowpark/transforms.py
+#
+#      - name: Deploy Openflow flows to SPCS runtime
+#        env:
+#          OPENFLOW_RUNTIME_URL: ${{ secrets.OPENFLOW_RUNTIME_URL }}
+#          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+#          AWS_REGION: ${{ vars.AWS_REGION }}
+#        run: |
+#          if [ -z "$OPENFLOW_RUNTIME_URL" ]; then
+#            echo "OPENFLOW_RUNTIME_URL not set — running in dry-run mode to validate flow configs."
+#            python ingestion/openflow/flows/deploy_all_flows.py --dry-run
+#          else
+#            python ingestion/openflow/flows/deploy_all_flows.py
+#          fi
+#
   # ─────────────────────────────────────────────────────────────────────────────
   # 6. dbt — transform layer
   # ─────────────────────────────────────────────────────────────────────────────
@@ -455,6 +455,11 @@ jobs:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
         run: |
           dbt source freshness --vars "{\"source_database\": \"${DBT_DB}\"}" || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
+          
+      - name: dbt debug
+        env:
+          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+        run: dbt debug --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
       - name: dbt run
         env:
