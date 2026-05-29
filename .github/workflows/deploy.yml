@@ -462,7 +462,7 @@ jobs:
           # Provide the file path to dbt
           SNOWFLAKE_PRIVATE_KEY_PATH: "./rsa_key.p8"
         run: |
-          dbt debug --profiles-dir .
+          dbt debug ~/.dbt/profiles.yml
 
       - name: dbt deps
         run: dbt deps
