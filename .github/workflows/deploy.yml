@@ -482,7 +482,7 @@ jobs:
         run: |
           cat ~/.dbt/profiles.yml
           grep -v token ~/.dbt/profiles.yml
-          echo SNOWFLAKE_PRIVATE_KEY_PATH
+          echo $SNOWFLAKE_PRIVATE_KEY_PATH
           ls -la "$GITHUB_WORKSPACE/rsa_key.p8"   # confirm it's still there
           dbt debug
 
