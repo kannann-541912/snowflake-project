@@ -473,6 +473,7 @@ jobs:
         # Warn-only on DEV — clone data may not be fresh
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt source freshness --vars "{\"source_database\": \"${DBT_DB}\"}" || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
           
@@ -482,9 +483,9 @@ jobs:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
         run: |
           cat ~/.dbt/profiles.yml
-          grep -v token ~/.dbt/profiles.yml
+          echo "************************************"
           echo $SNOWFLAKE_PRIVATE_KEY_PATH
-          ls -la "$GITHUB_WORKSPACE/rsa_key.p8"   # confirm it's still there
+          ls -ltr "$GITHUB_WORKSPACE/rsa_key.p8"   # confirm it's still there
           dbt debug
 
       - name: dbt run
