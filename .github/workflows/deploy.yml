@@ -455,7 +455,7 @@ jobs:
         run: |
           # Pull the multiline secret and write it safely to a file
           #echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" | sed 's/\\n/\n/g' > "$GITHUB_WORKSPACE/rsa_key.p8"
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$GITHUB_WORKSPACE/rsa_key.p8"
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" | base64 --decode > "$GITHUB_WORKSPACE/rsa_key.p8"
           chmod 600 "$GITHUB_WORKSPACE/rsa_key.p8"
           ls -la "$GITHUB_WORKSPACE/rsa_key.p8"   # confirm it exists
           
