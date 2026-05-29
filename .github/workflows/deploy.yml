@@ -30,8 +30,9 @@ on:
 # ── Resolve environment once for all jobs ─────────────────────────────────────
 env:
   SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
-  SNOWFLAKE_USER:    "MCP_SERVICE_USER"
-  #SNOWFLAKE_PAT: "eyJraWQiOiIyMTAwNjI5ODU4MTMxOTgyIiwiYWxnIjoiRVMyNTYifQ.eyJwIjoiMzIwNTMwODA0MjU6MzIwNTMwNzIyNjUiLCJpc3MiOiJTRjoyMDE3IiwiZXhwIjoxNzgyNTUzOTEwfQ.UXevzs2JfQumcM5Cs_jXdKJ93f6MRsT_ksv8lArAt0q7sW38JWtaX42Buz24YxxvK8TqUvNScTbL69m8lD13jg"
+  SNOWFLAKE_USER:    "DBT_GITHUB_ACTIONS_SVC"
+  #SNOWFLAKE_PAT: ""
+  SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
   DEPLOY_ENV:  ${{ github.event_name == 'push' && 'PROD' || inputs.environment }}
   SNOW_CONN:   ${{ (github.event_name == 'push' || inputs.environment == 'PROD') && 'prod' || 'dev' }}
   DBT_TARGET:  ${{ (github.event_name == 'push' || inputs.environment == 'PROD') && 'prod' || 'dev' }}
@@ -95,13 +96,13 @@ jobs:
           cat > ~/.snowflake/config.toml << EOF
           [connections.dev]
           account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
+          user          = "DBT_GITHUB_ACTIONS_SVC"
+          authenticator = snowflake_jwt
+          token         = "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}"
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
           schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
+          role          = "RETAIL_CATEGORY_ANALYTICS_ROLE"
           EOF
 
       - name: Compute clone database name
@@ -416,9 +417,22 @@ jobs:
       - name: Install dbt-snowflake
         run: pip install dbt-snowflake
 
+      - name: Create Private Key File
+        run: |
+          # Pull the multiline secret and write it safely to a file
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > rsa_key.p8
+          chmod 600 rsa_key.p8
+          
+      - name: Test Connection (dbt debug)
+        env:
+          # Provide the file path to dbt
+          SNOWFLAKE_PRIVATE_KEY_PATH: "./rsa_key.p8"
+        run: |
+          dbt debug --profiles-dir .
+
       - name: Write dbt profiles
         env: 
-          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
+          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.dbt
           # DEV: deploy into clone DB (schema TPCH_DEV)
@@ -439,10 +453,10 @@ jobs:
               ${{ env.DBT_TARGET }}:
                 type: snowflake
                 account: "A5701997473071-MPA05784"
-                user: "MCP_SERVICE_USER"
-                authenticator: "PROGRAMMATIC_ACCESS_TOKEN"
-                token: "eyJraWQiOiIyMTAwNjI5ODU4MTMxOTgyIiwiYWxnIjoiRVMyNTYifQ.eyJwIjoiMzIwNTMwODA0MjU6MzIwNTMwNzIyNjUiLCJpc3MiOiJTRjoyMDE3IiwiZXhwIjoxNzgyNTUzOTEwfQ.UXevzs2JfQumcM5Cs_jXdKJ93f6MRsT_ksv8lArAt0q7sW38JWtaX42Buz24YxxvK8TqUvNScTbL69m8lD13jg"
-                role: ACCOUNTADMIN
+                user: "DBT_GITHUB_ACTIONS_SVC"
+                authenticator: snowflake_jwt
+                private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}" 
+                role: RETAIL_CATEGORY_ANALYTICS_ROLE
                 database: ${DBT_DB}
                 warehouse: ANALYTICS_WH
                 schema: ${DBT_SCHEMA}
