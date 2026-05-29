@@ -454,8 +454,9 @@ jobs:
       - name: Create Private Key File
         run: |
           # Pull the multiline secret and write it safely to a file
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" | sed 's/\\n/\n/g' > rsa_key.p8
-          chmod 600 rsa_key.p8
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" | sed 's/\\n/\n/g' > "$GITHUB_WORKSPACE/rsa_key.p8"
+          chmod 600 "$GITHUB_WORKSPACE/rsa_key.p8"
+          ls -la "$GITHUB_WORKSPACE/rsa_key.p8"   # confirm it exists
           
       # - name: Test Connection (dbt debug)
       #   env:
@@ -481,6 +482,7 @@ jobs:
         run: |
           cat ~/.dbt/profiles.yml
           grep -v token ~/.dbt/profiles.yml
+          ls -la "$GITHUB_WORKSPACE/rsa_key.p8"   # confirm it's still there
           dbt debug
 
       - name: dbt run
