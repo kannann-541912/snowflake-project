@@ -417,19 +417,6 @@ jobs:
       - name: Install dbt-snowflake
         run: pip install dbt-snowflake
 
-      - name: Create Private Key File
-        run: |
-          # Pull the multiline secret and write it safely to a file
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > rsa_key.p8
-          chmod 600 rsa_key.p8
-          
-      - name: Test Connection (dbt debug)
-        env:
-          # Provide the file path to dbt
-          SNOWFLAKE_PRIVATE_KEY_PATH: "./rsa_key.p8"
-        run: |
-          dbt debug --profiles-dir .
-
       - name: Write dbt profiles
         env: 
           SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
@@ -463,6 +450,19 @@ jobs:
                 threads: 8
                 query_tag: "dbt_${{ env.DEPLOY_ENV }}_${{ github.sha }}"
           EOF
+
+      - name: Create Private Key File
+        run: |
+          # Pull the multiline secret and write it safely to a file
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > rsa_key.p8
+          chmod 600 rsa_key.p8
+          
+      - name: Test Connection (dbt debug)
+        env:
+          # Provide the file path to dbt
+          SNOWFLAKE_PRIVATE_KEY_PATH: "./rsa_key.p8"
+        run: |
+          dbt debug --profiles-dir .
 
       - name: dbt deps
         run: dbt deps
