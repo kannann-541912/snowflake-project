@@ -440,9 +440,8 @@ jobs:
               ${{ env.DBT_TARGET }}:
                 type: snowflake
                 account: "A5701997473071-MPA05784"
-                user: "DBT_GITHUB_ACTIONS_SVC"
-                authenticator: snowflake_jwt
-                private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}" 
+                user: "MCP_SERVICE_USER"
+                password: "${{ secrets.SNOWFLAKE_PAT }}"
                 role: RETAIL_CATEGORY_ANALYTICS_ROLE
                 database: ${DBT_DB}
                 warehouse: ANALYTICS_WH
@@ -451,18 +450,18 @@ jobs:
                 query_tag: "dbt_${{ env.DEPLOY_ENV }}_${{ github.sha }}"
           EOF
 
-      - name: Create Private Key File
-        run: |
-          # Pull the multiline secret and write it safely to a file
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > rsa_key.p8
-          chmod 600 rsa_key.p8
+      # - name: Create Private Key File
+      #   run: |
+      #     # Pull the multiline secret and write it safely to a file
+      #     echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > rsa_key.p8
+      #     chmod 600 rsa_key.p8
           
-      - name: Test Connection (dbt debug)
-        env:
-          # Provide the file path to dbt
-          SNOWFLAKE_PRIVATE_KEY_PATH: "./rsa_key.p8"
-        run: |
-          dbt debug ~/.dbt/profiles.yml
+      # - name: Test Connection (dbt debug)
+      #   env:
+      #     # Provide the file path to dbt
+      #     SNOWFLAKE_PRIVATE_KEY_PATH: "./rsa_key.p8"
+      #   run: |
+      #     dbt debug
 
       - name: dbt deps
         run: dbt deps
