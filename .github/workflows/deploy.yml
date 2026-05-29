@@ -491,6 +491,7 @@ jobs:
       - name: dbt run
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt run --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
