@@ -11,8 +11,8 @@ tpch_data_platform:
       type: snowflake
       account: A5701997473071-MPA05784
       user: "MCP_SERVICE_USER"
-      authenticator: programmatic_access_token
-      token: "{{ env_var('SNOWFLAKE_PAT') }}"
+      authenticator: snowflake_jwt
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
       role: ACCOUNTADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
