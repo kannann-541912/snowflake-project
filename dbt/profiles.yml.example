@@ -10,10 +10,10 @@ tpch_data_platform:
     dev:
       type: snowflake
       account: A5701997473071-MPA05784
-      user: "MCP_SERVICE_USER"
+      user: "DBT_GITHUB_ACTIONS_SVC"
       authenticator: snowflake_jwt
       private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
-      role: ACCOUNTADMIN
+      role: RETAIL_CATEGORY_ANALYTICS_ROLE
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: TPCH
