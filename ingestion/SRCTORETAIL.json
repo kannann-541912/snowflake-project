@@ -1,0 +1,11 @@
+{
+  "flow" : {
+    "createdTimestamp" : 1780046299761,
+    "description" : "S3 to Snowflake Category",
+    "identifier" : "SRCTORETAIL",
+    "lastModifiedTimestamp" : 1780046299761,
+    "name" : "SRC_TO_RETAIL",
+    "versionCount" : 0
+  },
+  "latest" : false
+}
