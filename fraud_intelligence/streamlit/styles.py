@@ -12,7 +12,7 @@ import streamlit as st
 
 _PRIMARY_BLUE = "#0d558b"      # Core brand blue
 _ACCENT_BLUE = "#01b8fb"       # Primary CTA / highlight
-_DARK_BG = "#030c25"           # Main background
+_DARK_BG = "#000000"           # Main background
 _DARK_BG_ALT = "#0A4672"       # Elevated surfaces
 _LIGHT_ACCENT = "#ecf6fd"      # Text / highlights
 _MUTED_BLUE = "#8ec9f5"        # Secondary text
@@ -41,7 +41,9 @@ THEME_CSS = f"""
      Streamlit renders built-in icons (sidebar collapse, expander chevron,
      selectbox caret, etc.) as Material Symbols ligatures. The universal
      * rule above overrides the icon font. Re-apply for Streamlit internals. */
-  [data-testid="stIconMaterial"] {{
+  [data-testid="stIconMaterial"],
+  [class*="material-symbols"],
+  [class*="material-icons"] {{
     font-family: 'Material Symbols Rounded', 'Material Symbols Outlined',
                  'Material Icons' !important;
     text-transform: none !important;
@@ -66,6 +68,13 @@ THEME_CSS = f"""
   }}
 
   /* ---------- HIDE STREAMLIT HINTS / DECORATIONS ---------- */
+  [data-testid="stCaption"] {{
+    color: #8ec9f5 !important;
+  }}
+  [data-testid="stWidgetLabel"] {{
+    color: #8ec9f5 !important;
+  }}
+
   [data-testid="InputInstructions"],
   [data-testid="stWidgetLabel"] .caption,
   .viewerBadge_container__r5tak,
@@ -85,14 +94,15 @@ THEME_CSS = f"""
   }}
 
   .app-header h1 {{
-    font-size: 1.8rem;
+    font-size: 2.8rem;
     font-weight: 700;
     margin: 0;
+    color: #ffffff !important;
   }}
 
   .app-header p {{
     color: {_TEXT_SECONDARY};
-    font-size: 0.9rem;
+    font-size: 1.15rem;
     margin-top: 4px;
   }}
 
@@ -114,14 +124,14 @@ THEME_CSS = f"""
   }}
 
   .kpi-label {{
-    font-size: 0.7rem;
+    font-size: 1.0rem;
     color: {_TEXT_SECONDARY};
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }}
 
   .kpi-value {{
-    font-size: 1.4rem;
+    font-size: 2.2rem;
     font-weight: 700;
   }}
 
@@ -135,28 +145,49 @@ THEME_CSS = f"""
 
   /* ---------- BUTTONS ---------- */
 
-  /* PRIMARY */
-  [data-testid="stButton"] button[kind="primary"] {{
+  /* PRIMARY — broad selectors to catch all Streamlit versions */
+  [data-testid="stButton"] button[kind="primary"],
+  [data-testid="stButton"] button[data-testid="baseButton-primary"],
+  [data-testid="stButton"] button.st-emotion-cache-primary {{
     background: linear-gradient(90deg, {_ACCENT_BLUE}, #009bd9) !important;
     color: white !important;
     border: none !important;
     font-weight: 600 !important;
   }}
 
-  [data-testid="stButton"] button[kind="primary"]:hover {{
+  [data-testid="stButton"] button[kind="primary"]:hover,
+  [data-testid="stButton"] button[data-testid="baseButton-primary"]:hover {{
     background: linear-gradient(90deg, #009bd9, {_DARK_BG_ALT}) !important;
   }}
 
   /* SECONDARY */
-  [data-testid="stButton"] button[kind="secondary"] {{
+  [data-testid="stButton"] button[kind="secondary"],
+  [data-testid="stButton"] button[data-testid="baseButton-secondary"] {{
     background: transparent !important;
     border: 1px solid {_PRIMARY_BLUE} !important;
     color: {_TEXT_SECONDARY} !important;
   }}
 
-  [data-testid="stButton"] button[kind="secondary"]:hover {{
+  [data-testid="stButton"] button[kind="secondary"]:hover,
+  [data-testid="stButton"] button[data-testid="baseButton-secondary"]:hover {{
     border-color: {_ACCENT_BLUE} !important;
     color: {_ACCENT_BLUE} !important;
+  }}
+
+  /* Fallback: ensure no button is accidentally red */
+  [data-testid="stButton"] button {{
+    border-color: {_PRIMARY_BLUE} !important;
+  }}
+
+  /* Root-level override for primary buttons (catches all Streamlit versions) */
+  [data-testid="baseButton-primary"],
+  button[data-testid="baseButton-primary"],
+  .stButton button[type="primary"],
+  .stButton > button:first-child {{
+    background: linear-gradient(90deg, {_ACCENT_BLUE}, #009bd9) !important;
+    color: white !important;
+    border: none !important;
+    font-weight: 600 !important;
   }}
 
   /* ---------- TABS ---------- */
@@ -172,6 +203,11 @@ THEME_CSS = f"""
     background: rgba(1,184,251,0.1) !important;
     border-color: {_ACCENT_BLUE} !important;
     color: {_ACCENT_BLUE} !important;
+  }}
+
+  [data-baseweb="tab-highlight"],
+  [data-baseweb="tab-border"] {{
+    display: none !important;
   }}
 
   /* ---------- SUGGESTION CHIPS ---------- */
@@ -194,17 +230,33 @@ THEME_CSS = f"""
     color: {_ACCENT_BLUE} !important;
   }}
 
-  /* ---------- SIDEBAR ---------- */
+  /* ---------- SIDEBAR (hidden) ---------- */
   [data-testid="stSidebar"] {{
-    overflow: visible !important;
+    display: none !important;
   }}
 
-  [data-testid="stSidebar"] [data-baseweb="select"] {{
-    overflow: visible !important;
+  /* ---------- SELECT / INPUT CONTROLS ---------- */
+  [data-baseweb="select"] {{
+    background: {_DARK_BG} !important;
+    border: 1px solid {_BORDER} !important;
+    border-radius: 8px !important;
   }}
-
-  [data-testid="stSidebar"] [data-baseweb="popover"] {{
-    z-index: 9999 !important;
+  [data-baseweb="select"]:hover,
+  [data-baseweb="select"]:focus-within {{
+    border-color: {_ACCENT_BLUE} !important;
+  }}
+  [data-baseweb="select"] [data-baseweb="input"] {{
+    background: transparent !important;
+    color: {_TEXT_PRIMARY} !important;
+  }}
+  [data-baseweb="input"] {{
+    background: {_DARK_BG} !important;
+    color: {_TEXT_PRIMARY} !important;
+    border: 1px solid {_BORDER} !important;
+    border-radius: 8px !important;
+  }}
+  [data-baseweb="input"]:focus-within {{
+    border-color: {_ACCENT_BLUE} !important;
   }}
 
   /* ---------- POPOVER / DROPDOWN (global) ----------
@@ -246,9 +298,25 @@ THEME_CSS = f"""
   [data-testid="stMarkdownContainer"] p {{
     line-height: 1.8;
     margin-bottom: 0.4rem;
+    color: #ffffff !important;
   }}
   [data-testid="stMarkdownContainer"] li {{
     line-height: 1.8;
+    color: #ffffff !important;
+  }}
+  [data-testid="stMarkdownContainer"] strong {{
+    color: #ffffff !important;
+  }}
+
+  /* ---------- TEXT SELECTION HIGHLIGHT ---------- */
+  ::selection {{
+    background: rgba(1,184,251,0.4) !important;
+    color: #ffffff !important;
+  }}
+
+  /* ---------- EXPANDER HEADER ---------- */
+  [data-testid="stExpander"] summary {{
+    color: #ffffff !important;
   }}
 
   /* ---------- STATUS ---------- */
@@ -289,7 +357,7 @@ THEME_CSS = f"""
   }}
   .metric-card .mc-label {{
     color: {_TEXT_SECONDARY};
-    font-size: 0.72rem;
+    font-size: 1.0rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: 600;
@@ -302,18 +370,18 @@ THEME_CSS = f"""
   }}
   .metric-card .mc-value {{
     color: #ffffff;
-    font-size: 1.75rem;
+    font-size: 2.6rem;
     font-weight: 700;
     line-height: 1.1;
     margin-top: 6px;
   }}
   .metric-card .mc-sub {{
     color: #6b7a90;
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     margin-top: 2px;
   }}
   [data-testid="stColumn"] [data-testid="stMarkdownContainer"] {{
-    height: 100%;
+    height: auto;
   }}
 
   /* ---------- INFO / TOAST BOXES ----------
@@ -347,7 +415,7 @@ THEME_CSS = f"""
   }}
   .info-card .ic-title {{
     color: #ffffff;
-    font-size: 0.95rem;
+    font-size: 1.2rem;
     font-weight: 700;
     margin-bottom: 10px;
     display: flex;
@@ -370,7 +438,7 @@ THEME_CSS = f"""
     align-items: center;
     gap: 8px;
     color: {_TEXT_SECONDARY};
-    font-size: 0.75rem;
+    font-size: 1.0rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-weight: 600;
@@ -380,7 +448,7 @@ THEME_CSS = f"""
   }}
   .info-card .ic-value {{
     color: #ffffff;
-    font-size: 0.9rem;
+    font-size: 1.15rem;
     font-weight: 600;
     text-align: right;
   }}
@@ -388,15 +456,22 @@ THEME_CSS = f"""
     display: inline-block;
     padding: 2px 10px;
     border-radius: 12px;
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 700;
     letter-spacing: 0.03em;
   }}
   .info-card .ic-pill-neutral  {{ background: rgba(13,85,139,0.35); color: #cfe6ff; }}
   .info-card .ic-pill-success  {{ background: rgba(46,204,113,0.18); color: #5be39a; }}
   .info-card .ic-pill-warning  {{ background: rgba(245,166,35,0.18); color: #ffc566; }}
-  .info-card .ic-pill-critical {{ background: rgba(231,76,60,0.20);  color: #ff8a7a; }}
+  .info-card .ic-pill-critical {{ background: rgba(246,173,85,0.20);  color: #f6ad55; }}
   .info-card .ic-pill-muted    {{ background: rgba(255,255,255,0.06); color: #8593a8; }}
+
+  /* ---------- MARKDOWN HEADINGS ---------- */
+  [data-testid="stMarkdownContainer"] h1,
+  [data-testid="stMarkdownContainer"] h2,
+  [data-testid="stMarkdownContainer"] h3 {{
+    color: #ffffff !important;
+  }}
 
 </style>
 """
@@ -466,7 +541,7 @@ def badge(text: str, color: str = "teal") -> str:
 def mono_box(text: str):
     st.markdown(
         f'<div style="background:rgba(10,70,114,0.3);border:2px solid {_ACCENT_BLUE};'
-        f'border-radius:10px;padding:20px 24px;font-family:monospace;font-size:0.85rem;'
+        f'border-radius:10px;padding:20px 24px;font-family:monospace;font-size:1.0rem;'
         f'line-height:1.7;color:{_TEXT_PRIMARY};white-space:pre-wrap">{text}</div>',
         unsafe_allow_html=True,
     )
@@ -486,7 +561,7 @@ def agent_answer_box(content: str):
     st.markdown(
         f'<div style="background:{_DARK_BG};border-left:4px solid {_ACCENT_BLUE};'
         f'padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;'
-        f'clear:both;font-size:0.85rem;color:{_TEXT_PRIMARY};line-height:1.5">{content}</div>',
+        f'clear:both;font-size:1.05rem;color:{_TEXT_PRIMARY};line-height:1.5">{content}</div>',
         unsafe_allow_html=True,
     )
 

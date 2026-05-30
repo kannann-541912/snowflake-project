@@ -1,11 +1,15 @@
-"""Fraud Intelligence Platform — AI-powered Alert investigation and SAR drafting.
+"""Fraud Intelligence Solution — AI-powered Alert investigation and SAR drafting.
 
 Powered by Snowflake Cortex Agents. Provides real-time fraud triage,
 ML-based scoring, and FinCEN-compliant SAR narrative generation.
+
+Runtime: Snowflake warehouse runtime. Calls Cortex Agents via
+SNOWFLAKE.CORTEX.DATA_AGENT_RUN SQL function (no REST API / EAI needed).
 """
 
 import streamlit as st
-import os, json, time, base64, html
+import json, time, base64, html
+from snowflake.snowpark.context import get_active_session
 from styles import apply_theme, app_header, section_card, status_banner, badge, metric_card, info_card
 
 TRIAGE_AGENT_DB = "DEMO_DEV"
@@ -31,25 +35,14 @@ def safe_int(val, default=0):
         return default
 
 
-SNOWFLAKE_HOST = "A5701997473071-MPA05784.snowflakecomputing.com"
+def _rerun():
+    if hasattr(st, "rerun"):
+        _rerun()
+    else:
+        st.experimental_rerun()
 
 
-def _agent_url(agent_name: str, db: str = TRIAGE_AGENT_DB, schema: str = TRIAGE_AGENT_SCHEMA) -> str:
-    host = os.getenv("SNOWFLAKE_HOST", SNOWFLAKE_HOST)
-    return f"https://{host}/api/v2/databases/{db}/schemas/{schema}/agents/{agent_name}:run"
 
-
-def _token() -> str:
-    return open("/snowflake/session/token").read().strip()
-
-
-def _stream_headers() -> dict:
-    return {
-        "Content-Type": "application/json",
-        "Accept": "text/event-stream",
-        "Authorization": f"Bearer {_token()}",
-        "X-Snowflake-Authorization-Token-Type": "OAUTH",
-    }
 
 
 def _tool_description(name: str) -> str:
@@ -73,143 +66,78 @@ def _render_tool_card(t: dict) -> str:
     s = t.get("status", "running")
     icon = "\u2705" if s == "completed" else ("\u274c" if s in ("failed", "incomplete") else "\u23f3")
     name = t.get("name", "unknown").strip()
-    dur = t.get("duration_ms")
-    dur_str = f"{dur/1000:.1f}s" if dur and dur >= 1000 else f"{dur}ms" if dur else ""
     desc = _tool_description(name)
     line = f"{icon} **{name}**"
     if desc:
         line += f"  \n{desc}"
-    if dur_str:
-        line += f" \u2014 {dur_str}"
     return line
 
 
-def _render_tool_chain(tool_execs: list) -> str:
+def _render_tool_chain(tool_execs: list, elapsed_sec: float = 0.0) -> str:
     if not tool_execs:
         return "_No tools executed yet._"
     cards = [f"{i}. {_render_tool_card(t)}" for i, t in enumerate(tool_execs, 1)]
-    total_ms = sum(t.get("duration_ms", 0) for t in tool_execs)
-    cards.append(f"\nTotal tools: {len(tool_execs)} | Duration: {total_ms}ms")
+    elapsed_str = f"{elapsed_sec:.1f}s" if elapsed_sec > 0 else "N/A"
+    cards.append(f"\nTotal tools: {len(tool_execs)} | Agent response time: {elapsed_str}")
     return "\n\n".join(cards)
 
 
-def _make_agent_request(url, body):
-    import urllib.request
-    import ssl
+def _call_agent(agent_name: str, messages: list, db: str = TRIAGE_AGENT_DB, schema: str = TRIAGE_AGENT_SCHEMA):
+    session = get_active_session()
+    fqn = f"{db}.{schema}.{agent_name}"
+    body = json.dumps({"messages": messages})
+    result = session.sql(
+        "SELECT TRY_PARSE_JSON(SNOWFLAKE.CORTEX.DATA_AGENT_RUN(?, ?)) AS RESP",
+        params=[fqn, body],
+    ).collect()
+    if not result or result[0]["RESP"] is None:
+        raise RuntimeError(f"Agent '{agent_name}' returned empty response")
+    resp = result[0]["RESP"]
+    return json.loads(resp) if isinstance(resp, str) else resp
 
-    headers = _stream_headers()
-    data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    ctx = ssl.create_default_context()
-    resp = urllib.request.urlopen(req, timeout=180, context=ctx)
-    return resp
 
-
-def _process_agent_stream(resp, status_placeholder, chain_placeholder, generating_label="Generating...", text_container=None):
+def _parse_agent_response(resp_data: dict):
     full_text = ""
     tool_chain = []
-    pending_tools = {}
-    text_placeholder = None
-    text_target = text_container if text_container is not None else chain_placeholder
-    event_type = ""
-    step_count = 0
 
-    def _update_chain():
-        combined = tool_chain + [
-            {**v, "duration_ms": int((time.time() - v["start_time"]) * 1000)}
-            for v in pending_tools.values()
-        ]
-        if combined:
-            chain_placeholder.markdown(_render_tool_chain(combined))
+    if not isinstance(resp_data, dict):
+        return None, tool_chain
 
-    for raw_line_bytes in resp:
-        raw_line = raw_line_bytes.decode("utf-8").rstrip("\n\r")
-        if not raw_line:
-            continue
-        if raw_line.startswith("event:"):
-            event_type = raw_line.split(":", 1)[1].strip()
-            continue
-        if not raw_line.startswith("data:"):
-            continue
-        data_str = raw_line[5:].strip()
-        if data_str == "[DONE]":
-            break
-        try:
-            data = json.loads(data_str)
-        except json.JSONDecodeError:
-            continue
+    content_items = resp_data.get("content", [])
 
-        if event_type == "response.status":
-            msg = data.get("message", "")
-            if msg:
-                status_placeholder.info(f"\u23f3 {msg}")
+    if isinstance(content_items, list):
+        for item in content_items:
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type", "")
 
-        elif event_type == "response.tool_use":
-            step_count += 1
-            tool_id = data.get("tool_use_id", f"tool_{step_count}")
-            pending_tools[tool_id] = {
-                "name": data.get("name", "unknown").strip(),
-                "type": data.get("type", "tool").strip(),
-                "tool_id": tool_id,
-                "start_time": time.time(),
-                "duration_ms": None, "status": "running", "output": "",
-            }
-            status_placeholder.info(f"\u23f3 Step {step_count}: {data.get('name', '')}")
-            _update_chain()
+            if item_type == "text":
+                text_val = item.get("text", "")
+                if text_val:
+                    full_text += text_val + "\n"
 
-        elif event_type == "response.tool_result":
-            tool_id = data.get("tool_use_id", "")
-            matched = tool_id if tool_id in pending_tools else None
-            if not matched:
-                for pid, pv in pending_tools.items():
-                    if pv["name"] == data.get("name", "").strip():
-                        matched = pid
-                        break
-            if matched:
-                entry = pending_tools.pop(matched)
-                entry["duration_ms"] = int((time.time() - entry["start_time"]) * 1000)
-                entry["status"] = "failed" if data.get("status") in ("error", "failed") else "completed"
-                raw_output = data.get("content", data.get("message", "")) or ""
-                if isinstance(raw_output, list):
-                    raw_output = " ".join(item.get("text", str(item)) if isinstance(item, dict) else str(item) for item in raw_output)
-                entry["output"] = str(raw_output).strip()[:1000]
+            elif item_type == "tool_result":
+                tr = item.get("tool_result", item)
+                entry = {
+                    "name": tr.get("name", "unknown").strip(),
+                    "status": "completed" if tr.get("status") not in ("error", "failed") else "failed",
+                    "duration_ms": tr.get("duration_ms", 0),
+                    "output": str(tr.get("content", ""))[:1000],
+                }
                 tool_chain.append(entry)
-            _update_chain()
-
-        elif event_type == "response.text.delta":
-            chunk = data.get("text", "")
-            if chunk:
-                full_text += chunk
-                if text_placeholder is None:
-                    status_placeholder.info(f"\u23f3 {generating_label}")
-                    text_placeholder = text_target.empty()
-                text_placeholder.markdown(full_text)
-
-        elif event_type == "response.text":
-            if not full_text:
-                full_text = data.get("text", "")
-
-        elif event_type == "response":
-            break
-
-    for entry in pending_tools.values():
-        entry["duration_ms"] = int((time.time() - entry["start_time"]) * 1000)
-        entry["status"] = "incomplete"
-        tool_chain.append(entry)
-    pending_tools.clear()
-
-    full_text = full_text.replace("\ufffd", "").strip()
-    if text_placeholder is not None:
-        text_placeholder.empty()
-    status_placeholder.success(f"\u2705 Complete \u2014 {len(tool_chain)} tool calls")
 
     if not full_text:
-        status_placeholder.warning("Agent returned no text. Check agent configuration.")
+        choices = resp_data.get("choices", [])
+        if choices:
+            message = choices[0].get("message", choices[0].get("delta", {}))
+            full_text = message.get("content", "") or ""
+        if not full_text:
+            full_text = resp_data.get("text", resp_data.get("message", "")) or ""
 
-    return full_text or None, tool_chain
+    return full_text.replace("\ufffd", "").strip() or None, tool_chain
 
 
-def call_triage_agent_streaming(alert_id: str, customer_id: str, status_placeholder, chain_placeholder, text_container=None, session=None):
+def call_triage_agent(alert_id: str, customer_id: str, session=None):
     live_scoring = False
     if session is not None:
         try:
@@ -225,45 +153,31 @@ def call_triage_agent_streaming(alert_id: str, customer_id: str, status_placehol
     if live_scoring:
         prompt += " This alert has no pre-computed ML score. Use FraudScorerLive for real-time model inference."
 
-    body = {
-        "messages": [{
-            "role": "user",
-            "content": [{
-                "type": "text",
-                "text": prompt,
-            }],
+    messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+    t0 = time.time()
+    resp_data = _call_agent(TRIAGE_AGENT_NAME, messages, TRIAGE_AGENT_DB, TRIAGE_AGENT_SCHEMA)
+    elapsed = time.time() - t0
+    text, tool_chain = _parse_agent_response(resp_data)
+    return text, tool_chain, elapsed
+
+
+def call_sar_agent(alert_id: str, customer_id: str, rule_code: str):
+    messages = [{
+        "role": "user",
+        "content": [{
+            "type": "text",
+            "text": (
+                f"Draft a FinCEN-compliant SAR narrative for alert {alert_id}, "
+                f"customer {customer_id}. Rule: {rule_code}. "
+                "Cover who/what/when/where/why. Include CITATION BLOCK."
+            ),
         }],
-        "stream": True,
-    }
-
-    status_placeholder.info("\u23f3 Connecting to Triage Agent...")
-    url = _agent_url(TRIAGE_AGENT_NAME, TRIAGE_AGENT_DB, TRIAGE_AGENT_SCHEMA)
-    resp = _make_agent_request(url, body)
-
-    return _process_agent_stream(resp, status_placeholder, chain_placeholder, generating_label="Generating dossier...", text_container=text_container)
-
-
-def call_sar_agent_streaming(alert_id: str, customer_id: str, rule_code: str, status_placeholder, chain_placeholder):
-    body = {
-        "messages": [{
-            "role": "user",
-            "content": [{
-                "type": "text",
-                "text": (
-                    f"Draft a FinCEN-compliant SAR narrative for alert {alert_id}, "
-                    f"customer {customer_id}. Rule: {rule_code}. "
-                    "Cover who/what/when/where/why. Include CITATION BLOCK."
-                ),
-            }],
-        }],
-        "stream": True,
-    }
-
-    status_placeholder.info("\u23f3 Connecting to SAR Agent...")
-    url = _agent_url(SAR_AGENT_NAME, SAR_AGENT_DB, SAR_AGENT_SCHEMA)
-    resp = _make_agent_request(url, body)
-
-    return _process_agent_stream(resp, status_placeholder, chain_placeholder, generating_label="Generating SAR narrative...")
+    }]
+    t0 = time.time()
+    resp_data = _call_agent(SAR_AGENT_NAME, messages, SAR_AGENT_DB, SAR_AGENT_SCHEMA)
+    elapsed = time.time() - t0
+    text, tool_chain = _parse_agent_response(resp_data)
+    return text, tool_chain, elapsed
 
 
 @st.cache_data(ttl=300, show_spinner="Loading alerts...")
@@ -346,6 +260,15 @@ def _write_analyst_decision(session, alert_id, customer_id, decision, sar_filed,
     decision_id = "DEC_" + str(uuid.uuid4()).replace("-", "")[:16].upper()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
+    ml_score_param = None
+    if ml_score is not None and str(ml_score).lower() != "none":
+        try:
+            ml_score_param = float(ml_score)
+        except (TypeError, ValueError):
+            ml_score_param = None
+
+    ml_score_sql = "NULL" if ml_score_param is None else str(ml_score_param)
+
     try:
         session.sql(
             "INSERT INTO DEMO_DEV.FRAUD_INTELLIGENCE.BRZ_ANALYST_DECISIONS "
@@ -353,10 +276,10 @@ def _write_analyst_decision(session, alert_id, customer_id, decision, sar_filed,
             " SAR_RECOMMENDED, SAR_FILED, ML_SCORE_AT_DECISION, AGENT_RECOMMENDATION, "
             " AGENT_CONFIDENCE, AGENT_REASONING_SUMMARY, RULE_TRIGGERED, RULE_ML_AGREEMENT, "
             " SAR_THRESHOLD_MET, DECISION_TIMESTAMP, SOURCE_SYSTEM, INGESTED_AT) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AGENT_ASSISTED_TRIAGE', ?)",
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, {ml_score_sql}, ?, ?, ?, ?, ?, ?, ?, 'AGENT_ASSISTED_TRIAGE', ?)",
             params=[
                 decision_id, alert_id, customer_id, "ANALYST_APP", decision,
-                sar_recommended, sar_filed, ml_score, agent_recommendation,
+                sar_recommended, sar_filed, agent_recommendation,
                 agent_confidence, agent_reasoning, rule_code, rule_ml_agreement,
                 sar_filed, now, now,
             ],
@@ -447,7 +370,7 @@ def render_governance_tab(session):
             total_labels = label_dist["CNT"].sum()
             for _, row in label_dist.iterrows():
                 pct = row["CNT"] / total_labels * 100
-                color = "#e53e3e" if row["CLASS_LABEL"] == "FRAUD" else "#48bb78"
+                color = "#e67e22" if row["CLASS_LABEL"] == "FRAUD" else "#48bb78"
                 st.markdown(
                     f'<div style="display:flex;align-items:center;gap:8px;margin:4px 0">'
                     f'<span style="background:{color};width:12px;height:12px;border-radius:2px;display:inline-block"></span>'
@@ -462,7 +385,7 @@ def render_governance_tab(session):
         if not rule_alignment.empty:
             for _, row in rule_alignment.iterrows():
                 pct = float(row["AGREEMENT_PCT"] or 0)
-                bar_color = "#48bb78" if pct >= 70 else ("#ed8936" if pct >= 40 else "#e53e3e")
+                bar_color = "#48bb78" if pct >= 70 else ("#ed8936" if pct >= 40 else "#e67e22")
                 st.markdown(
                     f'<div style="margin:4px 0"><b>{row["RULE_TRIGGERED"]}</b> '
                     f'<span style="color:#a0aec0">({int(row["TOTAL_DECISIONS"])} decisions)</span><br>'
@@ -576,20 +499,22 @@ def init_session_state():
     defaults = {
         "investigation_result": None,
         "investigation_tool_chain": None,
+        "investigation_elapsed": 0.0,
         "investigated_alert_id": None,
         "sar_alert_context": None,
         "sar_draft": None,
         "sar_tool_chain": None,
+        "sar_elapsed": 0.0,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
 
 
-def render_sidebar(alerts_df, alert_ids):
-    with st.sidebar:
-        st.markdown("**Alert triage**")
+def render_alert_selector(alerts_df, alert_ids):
+    col_dd, col_meta, col_btn = st.columns([2, 4, 1])
 
+    with col_dd:
         selected_idx = st.selectbox(
             "Alert ID",
             range(len(alert_ids)),
@@ -597,31 +522,35 @@ def render_sidebar(alerts_df, alert_ids):
             key="alert_selector",
         )
 
-        alert_row = alerts_df.iloc[selected_idx]
-        selected_alert_id = str(alert_row["ALERT_ID"])
-        customer_id = str(alert_row["CUSTOMER_ID"])
+    alert_row = alerts_df.iloc[selected_idx]
+    selected_alert_id = str(alert_row["ALERT_ID"])
+    customer_id = str(alert_row["CUSTOMER_ID"])
 
-        status = str(alert_row.get("ALERT_STATUS", ""))
-        if status == "OPEN":
-            st.caption("\u26a0\ufe0f Open")
-        elif status == "ESCALATED":
-            st.caption("\U0001f6a8 Escalated")
-        else:
-            st.caption(f"\u2139\ufe0f {status}")
+    status = str(alert_row.get("ALERT_STATUS", ""))
+    alert_date = alert_row.get("ALERT_DATE", "N/A")
+    if hasattr(alert_date, "strftime"):
+        alert_date = alert_date.strftime("%Y-%m-%d %H:%M")
 
-        st.caption(f"{alert_row.get('FULL_NAME', 'Unknown')} (`{customer_id}`)")
-        alert_date = alert_row.get("ALERT_DATE", "N/A")
-        if hasattr(alert_date, "strftime"):
-            alert_date = alert_date.strftime("%Y-%m-%d %H:%M")
-        st.caption(f"Date: {alert_date}")
-        st.caption(f"Rule: {alert_row.get('RULE_CODE', 'N/A')}")
+    with col_meta:
+        st.markdown(
+            f'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:28px">'
+            f'<span style="font-weight:600">{html.escape(str(alert_row.get("FULL_NAME", "Unknown")))}</span>'
+            f'<span style="color:#a0aec0">|</span>'
+            f'<span style="color:#8ec9f5">{html.escape(str(alert_date))}</span>'
+            f'<span style="color:#a0aec0">|</span>'
+            f'<span style="color:#8ec9f5">Rule: {html.escape(str(alert_row.get("RULE_CODE", "N/A")))}</span>'
+            f'<span style="color:#a0aec0">|</span>'
+            f'{badge(html.escape(status), "orange" if status == "ESCALATED" else "teal")}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
+    with col_btn:
+        st.markdown('<div style="padding-top:24px"></div>', unsafe_allow_html=True)
         if st.button("Investigate", type="primary", use_container_width=True):
             st.session_state.investigation_result = None
             st.session_state.investigation_tool_chain = None
             st.session_state.investigated_alert_id = selected_alert_id
-
-        st.caption(f"v{st.__version__}")
 
     return alert_row, selected_alert_id, customer_id
 
@@ -653,6 +582,7 @@ def render_investigation_results(selected_alert_id, risk_score, customer_id, ale
     st.markdown("---")
 
     tool_chain = st.session_state.investigation_tool_chain or []
+    elapsed = st.session_state.get("investigation_elapsed", 0.0)
     ml_score, ml_risk_tier = extract_ml_score_from_tool_chain(tool_chain)
 
     if ml_score is not None:
@@ -663,9 +593,9 @@ def render_investigation_results(selected_alert_id, risk_score, customer_id, ale
         mc2.metric("ML Risk Tier", ml_tier)
         mc3.metric("Rule Risk Score", f"{risk_score:.3f}")
 
-    total_ms = sum(t.get("duration_ms", 0) for t in tool_chain)
-    with st.expander(f"Tool Execution - {len(tool_chain)} tools | {total_ms/1000:.1f}s", expanded=False):
-        st.markdown(_render_tool_chain(tool_chain))
+    elapsed_str = f"{elapsed:.1f}s" if elapsed > 0 else ""
+    with st.expander(f"Tool Execution - {len(tool_chain)} tools | {elapsed_str}", expanded=False):
+        st.markdown(_render_tool_chain(tool_chain, elapsed))
 
     st.markdown(result)
 
@@ -704,22 +634,31 @@ def run_triage_agent(selected_alert_id, customer_id):
         return
 
     try:
-        status_placeholder = st.empty()
-        chain_placeholder = st.empty()
-        dossier_container = st.empty()
-        dossier, tool_chain = call_triage_agent_streaming(
-            selected_alert_id, customer_id, status_placeholder, chain_placeholder, dossier_container,
-            session=st.connection("snowflake").session(),
-        )
-        status_placeholder.empty()
-        chain_placeholder.empty()
-        dossier_container.empty()
+        with st.spinner("Agent investigating..."):
+            dossier, tool_chain, elapsed = call_triage_agent(
+                selected_alert_id, customer_id,
+                session=get_active_session(),
+            )
         st.session_state.investigation_result = dossier
         st.session_state.investigation_tool_chain = tool_chain
-        st.rerun()
-    except Exception as e:
-        st.error(f"Triage agent error: {e}")
+        st.session_state.investigation_elapsed = elapsed
+        _rerun()
+    except ConnectionError as e:
+        st.error(f"Unable to reach triage agent. Please retry. ({e})")
         st.session_state.investigation_result = None
+        st.session_state.investigated_alert_id = None
+    except ValueError as e:
+        st.error(f"Triage agent returned an unparseable response. ({e})")
+        st.session_state.investigation_result = None
+        st.session_state.investigated_alert_id = None
+    except RuntimeError as e:
+        st.error(f"Triage agent failed: {e}")
+        st.session_state.investigation_result = None
+        st.session_state.investigated_alert_id = None
+    except Exception as e:
+        st.error(f"Unexpected error during investigation: {type(e).__name__}: {e}")
+        st.session_state.investigation_result = None
+        st.session_state.investigated_alert_id = None
 
 
 def render_investigation_tab(alert_row, selected_alert_id, customer_id, cp, vc):
@@ -735,7 +674,12 @@ def render_investigation_tab(alert_row, selected_alert_id, customer_id, cp, vc):
     amt_24h = safe_float(vc.get("TXN_AMOUNT_24H"))
     tenure_tier = str(cp.get("TENURE_RISK_TIER", "N/A"))
 
-    st.caption(f"Alert `{selected_alert_id}` \u2014 {alert_row.get('FULL_NAME', 'Unknown')} \u2014 {alert_row.get('RULE_CODE', 'N/A')}")
+    st.markdown(
+        f'<span style="color:#8ec9f5;font-size:1.0rem">'
+        f'Alert <code>{selected_alert_id}</code> \u2014 {html.escape(str(alert_row.get("FULL_NAME", "Unknown")))} '
+        f'\u2014 {html.escape(str(alert_row.get("RULE_CODE", "N/A")))}</span>',
+        unsafe_allow_html=True,
+    )
 
     # ---- METRIC TILES ----------------------------------------------------
     # Visual: blue-accent metric_card() tiles (styles.py).
@@ -841,27 +785,31 @@ def render_investigation_tab(alert_row, selected_alert_id, customer_id, cp, vc):
     run_triage_agent(selected_alert_id, customer_id)
     render_investigation_results(selected_alert_id, risk_score, customer_id, alert_row)
 
-    if st.session_state.investigated_alert_id != selected_alert_id:
+    if st.session_state.investigated_alert_id is None:
         st.session_state.investigation_result = None
         st.session_state.investigation_tool_chain = None
-        st.caption("Select an alert in the sidebar and click **Investigate** to run Cortex Agent analysis.")
+        st.caption("Click **Investigate** above to run Cortex Agent analysis.")
 
 
 def run_sar_agent(ctx):
     if st.button("Draft SAR narrative", type="primary", use_container_width=True):
         try:
-            status_placeholder = st.empty()
-            chain_placeholder = st.empty()
-            draft, tool_chain = call_sar_agent_streaming(
-                ctx["alert_id"], ctx["customer_id"], ctx["rule_code"], status_placeholder, chain_placeholder,
-            )
-            status_placeholder.empty()
-            chain_placeholder.empty()
+            with st.spinner("Generating SAR narrative..."):
+                draft, tool_chain, elapsed = call_sar_agent(
+                    ctx["alert_id"], ctx["customer_id"], ctx["rule_code"],
+                )
             st.session_state.sar_draft = draft
             st.session_state.sar_tool_chain = tool_chain
-            st.rerun()
+            st.session_state.sar_elapsed = elapsed
+            _rerun()
+        except ConnectionError as e:
+            st.error(f"Unable to reach SAR agent. Please retry. ({e})")
+        except ValueError as e:
+            st.error(f"SAR agent returned an unparseable response. ({e})")
+        except RuntimeError as e:
+            st.error(f"SAR agent failed: {e}")
         except Exception as e:
-            st.error(f"SAR agent error: {e}")
+            st.error(f"Unexpected error during SAR drafting: {type(e).__name__}: {e}")
 
 
 def render_sar_draft(ctx):
@@ -869,9 +817,10 @@ def render_sar_draft(ctx):
         return
 
     tool_chain = st.session_state.sar_tool_chain or []
-    total_ms = sum(t.get("duration_ms", 0) for t in tool_chain)
-    with st.expander(f"Tool Execution - {len(tool_chain)} tools | {total_ms/1000:.1f}s", expanded=False):
-        st.markdown(_render_tool_chain(tool_chain))
+    elapsed = st.session_state.get("sar_elapsed", 0.0)
+    elapsed_str = f"{elapsed:.1f}s" if elapsed > 0 else ""
+    with st.expander(f"Tool Execution - {len(tool_chain)} tools | {elapsed_str}", expanded=False):
+        st.markdown(_render_tool_chain(tool_chain, elapsed))
 
     st.markdown(st.session_state.sar_draft)
 
@@ -898,7 +847,7 @@ def render_sar_draft(ctx):
                 "rule_code": ctx.get("rule_code", ""),
                 "clear_draft": False,
             }
-            st.rerun()
+            _rerun()
     with sc2:
         if st.button("Request edits", use_container_width=True):
             st.session_state["_pending_sar_decision"] = {
@@ -912,7 +861,7 @@ def render_sar_draft(ctx):
                 "rule_code": ctx.get("rule_code", ""),
                 "clear_draft": False,
             }
-            st.rerun()
+            _rerun()
     with sc3:
         if st.button("Reject draft", use_container_width=True):
             st.session_state["_pending_sar_decision"] = {
@@ -926,7 +875,7 @@ def render_sar_draft(ctx):
                 "rule_code": ctx.get("rule_code", ""),
                 "clear_draft": True,
             }
-            st.rerun()
+            _rerun()
 
 
 def render_sar_tab():
@@ -934,7 +883,7 @@ def render_sar_tab():
     if pending:
         with st.spinner("Recording analyst decision..."):
             ok, ref = _write_analyst_decision(
-                session=st.connection("snowflake").session(),
+                session=get_active_session(),
                 alert_id=pending["alert_id"],
                 customer_id=pending["customer_id"],
                 decision=pending["decision"],
@@ -991,27 +940,21 @@ def render_sar_tab():
 
 def main():
     st.set_page_config(
-        page_title="Fraud Intelligence Platform",
+        page_title="Fraud Intelligence Solution",
         page_icon="\U0001f6e1\ufe0f",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="collapsed",
     )
 
     apply_theme()
 
-    session = st.connection("snowflake").session()
+    session = get_active_session()
 
     logo = session.file.get_stream(
         "@DEMO_DEV.PUBLIC.SHARED_ASSETS/_shared_theme/Mastech Digital-White 4.svg",
         decompress=False,
     ).read()
     logo_b64 = base64.b64encode(logo).decode()
-    with st.sidebar:
-        st.markdown(
-            f'<img src="data:image/svg+xml;base64,{logo_b64}" width="180" style="margin-bottom:8px"/>',
-            unsafe_allow_html=True,
-        )
-        st.divider()
 
     init_session_state()
 
@@ -1023,17 +966,22 @@ def main():
 
     alert_ids = alerts_df["ALERT_ID"].tolist()
 
-    alert_row, selected_alert_id, customer_id = render_sidebar(alerts_df, alert_ids)
+    st.markdown(
+        f'<div class="app-header">'
+        f'<div style="display:flex;align-items:center;gap:20px">'
+        f'<img src="data:image/svg+xml;base64,{logo_b64}" height="40"/>'
+        f'<div><h1>&#x1F6E1;&#xFE0F; Fraud Intelligence Solution</h1>'
+        f'<p>AI-powered alert investigation &nbsp;&middot;&nbsp; SAR narrative drafting &nbsp;&middot;&nbsp; Powered by Snowflake Cortex Agents</p>'
+        f'</div></div></div>',
+        unsafe_allow_html=True,
+    )
+
+    alert_row, selected_alert_id, customer_id = render_alert_selector(alerts_df, alert_ids)
 
     cp_df = load_customer_profile(session, customer_id)
     vc_df = load_velocity(session, customer_id)
     cp = cp_df.iloc[0].to_dict() if not cp_df.empty else {}
     vc = vc_df.iloc[0].to_dict() if not vc_df.empty else {}
-
-    app_header(
-        "&#x1F6E1;&#xFE0F; Fraud Intelligence Platform",
-        "AI-powered alert investigation &nbsp;&middot;&nbsp; SAR narrative drafting &nbsp;&middot;&nbsp; Powered by Snowflake Cortex Agents",
-    )
 
     tab_investigate, tab_sar, tab_governance = st.tabs(["Investigation", "SAR Drafting", "Governance"])
 
