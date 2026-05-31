@@ -9,5 +9,3 @@ entities:
     title: "Data Platform Dashboard"
     query_warehouse: ANALYTICS_WH
     main_file: main.py
-    additional_source_files:
-      - ../../shared/utils.py

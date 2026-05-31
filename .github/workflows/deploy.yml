@@ -665,6 +665,23 @@ jobs:
           chmod 600 /tmp/ci_rsa_key.p8
           rm -f /tmp/ci_rsa_key_raw.p8
 
+      - name: Configure Snowflake connection
+        run: |
+          mkdir -p ~/.snowflake
+          touch ~/.snowflake/config.toml
+          chmod 0600 ~/.snowflake/config.toml
+          cat > ~/.snowflake/config.toml << EOF
+          [connections.default]
+          account          = "xna38553.east-us-2.azure"
+          user             = "CI_DEPLOY_SVC"
+          authenticator    = "snowflake_jwt"
+          private_key_path = "/tmp/ci_rsa_key.p8"
+          warehouse        = "ANALYTICS_WH"
+          database         = "SANDBOX"
+          schema           = "TPCH"
+          role             = "CI_DEPLOY_ROLE"
+          EOF
+
       - name: Run evaluation suites for all agents
         env:
           SNOWFLAKE_ACCOUNT:          "xna38553.east-us-2.azure"
