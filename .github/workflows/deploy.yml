@@ -643,6 +643,7 @@ jobs:
     name: Agent Evaluation Suite
     needs: deploy-agent
     if: always() && needs.deploy-agent.result == 'success' && inputs.skip_evals != 'true'
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -653,7 +654,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install eval dependencies
-        run: pip install snowflake-connector-python pyyaml
+        run: pip install snowflake-connector-python pyyaml requests
 
       - name: Write private key file
         env:

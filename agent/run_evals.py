@@ -34,6 +34,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import requests
+
 import yaml
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -143,20 +145,54 @@ def get_snowflake_connection(config: dict):
 # ---------------------------------------------------------------------------
 
 def invoke_agent(conn, agent_fqn: str, question: str) -> dict:
-    escaped = question.replace("'", "''")
-    sql = f"""
-        SELECT SNOWFLAKE.CORTEX.COMPLETE_AGENT(
-            '{agent_fqn}',
-            PARSE_JSON('[{{"role": "user", "content": "{escaped}"}}]')
-        ) AS response
     """
-    cursor = conn.cursor()
-    cursor.execute(sql)
-    row = cursor.fetchone()
-    if not row:
-        return {"error": "No response from agent"}
-    raw = row[0]
-    return json.loads(raw) if isinstance(raw, str) else raw
+    Invoke a Cortex Agent via the REST API (/api/v2/cortex/agent:run).
+    Cortex Agents are not exposed as a SQL UDF — they require an HTTP call
+    with a JWT Bearer token, which we derive from the live connector session.
+    """
+    account = conn.account
+    # Normalise account identifier to the host format Snowflake REST expects
+    host = f"{account}.snowflakecomputing.com"
+
+    # Extract the session token from the active connector so we can reuse it
+    # as a Bearer token for the REST call.
+    token = conn.rest.token
+
+    url = f"https://{host}/api/v2/cortex/agent:run"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type":  "application/json",
+        "Accept":        "application/json",
+        "X-Snowflake-Authorization-Token-Type": "OAUTH",
+    }
+    payload = {
+        "model":    agent_fqn,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": question}]}],
+    }
+
+    resp = requests.post(url, headers=headers, json=payload, timeout=120)
+    if resp.status_code != 200:
+        return {"error": f"HTTP {resp.status_code}: {resp.text[:400]}"}
+
+    # Response is newline-delimited JSON (SSE-style); collect the last delta
+    text_parts = []
+    for line in resp.text.splitlines():
+        line = line.strip()
+        if not line or line.startswith(":"):
+            continue
+        if line.startswith("data:"):
+            line = line[len("data:"):].strip()
+        try:
+            chunk = json.loads(line)
+            for choice in chunk.get("choices", []):
+                delta = choice.get("delta", {})
+                for part in delta.get("content", []):
+                    if part.get("type") == "text":
+                        text_parts.append(part.get("text", ""))
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    return {"content": "".join(text_parts)}
 
 
 def judge_response(conn, config: dict, question: str, agent_response: str, expected_behavior: str) -> dict:
