@@ -90,12 +90,15 @@ def get_snowflake_connection(config: dict):
         sys.exit(1)
 
     conn_cfg = config["connection"]
-    pat = os.environ.get("SNOWFLAKE_PAT")
+    account  = conn_cfg.get("account", os.environ.get("SNOWFLAKE_ACCOUNT", ""))
+    user     = conn_cfg.get("user",    os.environ.get("SNOWFLAKE_USER", ""))
 
+    # PAT auth (highest priority)
+    pat = os.environ.get("SNOWFLAKE_PAT")
     if pat:
         return snowflake.connector.connect(
-            account       = conn_cfg.get("account", os.environ.get("SNOWFLAKE_ACCOUNT", "")),
-            user          = conn_cfg.get("user",    os.environ.get("SNOWFLAKE_USER", "")),
+            account       = account,
+            user          = user,
             authenticator = "programmatic_access_token",
             token         = pat,
             database      = conn_cfg["database"],
@@ -103,6 +106,30 @@ def get_snowflake_connection(config: dict):
             warehouse     = conn_cfg["warehouse"],
         )
 
+    # Private key / JWT auth — connector requires DER bytes, not a file path
+    private_key_path = os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH")
+    if private_key_path:
+        from cryptography.hazmat.primitives.serialization import (
+            load_pem_private_key, Encoding, PrivateFormat, NoEncryption,
+        )
+        from cryptography.hazmat.backends import default_backend
+        with open(private_key_path, "rb") as f:
+            pk_obj = load_pem_private_key(f.read(), password=None, backend=default_backend())
+        pk_bytes = pk_obj.private_bytes(
+            encoding=Encoding.DER,
+            format=PrivateFormat.PKCS8,
+            encryption_algorithm=NoEncryption(),
+        )
+        return snowflake.connector.connect(
+            account     = account,
+            user        = user,
+            private_key = pk_bytes,
+            database    = conn_cfg["database"],
+            schema      = conn_cfg["schema"],
+            warehouse   = conn_cfg["warehouse"],
+        )
+
+    # Fall back to named connection profile in ~/.snowflake/config.toml
     return snowflake.connector.connect(
         connection_name = conn_cfg.get("profile", "default"),
         database        = conn_cfg["database"],
