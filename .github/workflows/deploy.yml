@@ -71,7 +71,6 @@ jobs:
     name: Create Branch Clone DB
     needs: guard
     runs-on: ubuntu-latest
-    # Only runs for manual DEV dispatches — push to main (PROD) skips this job
     if: github.event_name == 'workflow_dispatch' && inputs.environment == 'DEV'
     outputs:
       clone_db: ${{ steps.set-clone-name.outputs.clone_db }}
@@ -89,8 +88,8 @@ jobs:
 
       - name: Write private key file
         run: |
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" | base64 --decode > /tmp/rsa_key.p8
-          chmod 600 /tmp/rsa_key.p8
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -100,26 +99,23 @@ jobs:
           cat > ~/.snowflake/config.toml << EOF
           [connections.dev]
           account          = "xna38553.east-us-2.azure"
-          user             = "DBT_GITHUB_ACTIONS_SVC"
+          user             = "CI_DEPLOY_SVC"
           authenticator    = "snowflake_jwt"
-          private_key_path = "/tmp/rsa_key.p8"
+          private_key_path = "/tmp/ci_rsa_key.p8"
           warehouse        = "ANALYTICS_WH"
           database         = "SANDBOX"
           schema           = "TPCH"
-          role             = "RETAIL_CATEGORY_ANALYTICS_ROLE"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
       - name: Compute clone database name
         id: set-clone-name
         run: |
-          # Sanitize branch name: lowercase → uppercase, replace / - . with _
-          # Truncate to 30 chars to stay within Snowflake identifier limits
           BRANCH="${{ github.ref_name }}"
           SAFE=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]' | tr '/.-' '_' | cut -c1-30)
           CLONE_DB="SANDBOX_${SAFE}"
           echo "clone_db=${CLONE_DB}" >> $GITHUB_OUTPUT
           echo "Clone database: ${CLONE_DB}"
-
           echo "| Clone DB | \`${CLONE_DB}\` |" >> $GITHUB_STEP_SUMMARY
 
       - name: Create zero-copy clone of SANDBOX
@@ -131,11 +127,11 @@ jobs:
           " -c dev
           echo "Created clone: ${CLONE_DB}"
 
-      - name: Grant usage on clone to service user
+      - name: Grant usage on clone to CI role
         run: |
           CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
           snow sql -q "
-            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE ACCOUNTADMIN;
+            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE CI_DEPLOY_ROLE;
           " -c dev
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -144,7 +140,6 @@ jobs:
   deploy-dcm:
     name: Deploy DCM Objects
     needs: [guard, clone-db]
-    # clone-db is skipped for PROD; 'skipped' counts as success for needs
     if: always() && needs.guard.result == 'success' && (needs.clone-db.result == 'success' || needs.clone-db.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
@@ -158,6 +153,11 @@ jobs:
       - name: Install Snowflake CLI
         run: pip install snowflake-cli
 
+      - name: Write private key file
+        run: |
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
+
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
@@ -165,22 +165,20 @@ jobs:
           chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
+          account          = "xna38553.east-us-2.azure"
+          user             = "CI_DEPLOY_SVC"
+          authenticator    = "snowflake_jwt"
+          private_key_path = "/tmp/ci_rsa_key.p8"
+          warehouse        = "ANALYTICS_WH"
+          database         = "SANDBOX"
+          schema           = "TPCH"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
-      # ── DEV: patch manifest.yml to point CI target at the branch clone ──────
       - name: Patch manifest.yml for CI clone (DEV only)
         if: env.DEPLOY_ENV == 'DEV'
         run: |
           CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          # Replace the SANDBOX_CI placeholder with the actual branch clone name
           sed -i "s/SANDBOX_CI/${CLONE_DB}/g" manifest.yml
           echo "Patched manifest.yml — CI target now points to: ${CLONE_DB}"
           grep "project_name" manifest.yml
@@ -189,20 +187,14 @@ jobs:
         if: env.DEPLOY_ENV == 'DEV'
         run: |
           CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          # Repoint all SANDBOX. references in definition files to the clone DB
           for f in sources/definitions/*.sql; do
             sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
             echo "Patched $f → ${CLONE_DB}"
           done
 
-      # ── Bootstrap: initialize project on first deploy if it doesn't exist ───
-      # snow dcm deploy requires the DCM project to already be registered in
-      # Snowflake. This step creates it idempotently so subsequent runs are safe.
       - name: Bootstrap DCM project (idempotent)
         run: |
           TARGET=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "PROD" || echo "CI" )
-          # create returns non-zero if project already exists — that's fine.
-          # But if it fails for another reason (permissions, bad DB), we must know.
           OUTPUT=$(snow dcm create --target ${TARGET} -c ${{ env.SNOW_CONN }} 2>&1) || {
             if echo "$OUTPUT" | grep -qi "already exists"; then
               echo "DCM project already initialized — continuing."
@@ -245,6 +237,11 @@ jobs:
       - name: Install Snowflake CLI
         run: pip install snowflake-cli
 
+      - name: Write private key file
+        run: |
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
+
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
@@ -252,14 +249,14 @@ jobs:
           chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
+          account          = "xna38553.east-us-2.azure"
+          user             = "CI_DEPLOY_SVC"
+          authenticator    = "snowflake_jwt"
+          private_key_path = "/tmp/ci_rsa_key.p8"
+          warehouse        = "ANALYTICS_WH"
+          database         = "SANDBOX"
+          schema           = "TPCH"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
       - name: Resolve target ML database for environment
@@ -317,6 +314,11 @@ jobs:
       - name: Install dependencies
         run: pip install snowflake-cli snowflake-snowpark-python nipyapi
 
+      - name: Write private key file
+        run: |
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
+
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
@@ -324,22 +326,20 @@ jobs:
           chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
+          account          = "xna38553.east-us-2.azure"
+          user             = "CI_DEPLOY_SVC"
+          authenticator    = "snowflake_jwt"
+          private_key_path = "/tmp/ci_rsa_key.p8"
+          warehouse        = "ANALYTICS_WH"
+          database         = "SANDBOX"
+          schema           = "TPCH"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
-      # ── DEV: repoint all SQL files to the branch clone database ─────────────
       - name: Repoint ingestion SQL to branch clone (DEV only)
         if: env.DEPLOY_ENV == 'DEV'
         run: |
           CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
-          # Replace all fully-qualified SANDBOX. references in ingestion SQL
           for f in ingestion/snowflake/streams.sql \
                    ingestion/snowflake/tasks.sql; do
             sed -i "s/SANDBOX\./${CLONE_DB}./g" "$f"
@@ -365,7 +365,6 @@ jobs:
 
       - name: Resume tasks
         run: |
-          # Use clone DB for DEV, SANDBOX for PROD
           DB=$( [ "${{ env.DEPLOY_ENV }}" = "PROD" ] && echo "SANDBOX" || echo "${{ needs.clone-db.outputs.clone_db }}" )
           snow sql -q "ALTER TASK ${DB}.TPCH.REFRESH_SUMMARY_TASK RESUME;" -c ${{ env.SNOW_CONN }}
           snow sql -q "ALTER TASK ${DB}.TPCH.LOAD_ORDERS_TASK RESUME;"     -c ${{ env.SNOW_CONN }}
@@ -374,11 +373,11 @@ jobs:
 
       - name: Deploy Snowpark stored procedures
         env:
-          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
+          CI_DEPLOY_PRIVATE_KEY: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
           export SNOWFLAKE_ACCOUNT="xna38553.east-us-2.azure"
-          export SNOWFLAKE_USER="MCP_SERVICE_USER"
-          # Use clone DB for DEV, SANDBOX for PROD
+          export SNOWFLAKE_USER="CI_DEPLOY_SVC"
+          export SNOWFLAKE_PRIVATE_KEY_PATH="/tmp/ci_rsa_key.p8"
           if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
             export SNOWFLAKE_DATABASE="SANDBOX"
           else
@@ -462,7 +461,6 @@ jobs:
         run: dbt deps
 
       - name: dbt source freshness
-        # Warn-only on DEV — clone data may not be fresh
         continue-on-error: ${{ env.DEPLOY_ENV == 'DEV' }}
         env:
           DBT_DB: "SANDBOX"
@@ -521,6 +519,11 @@ jobs:
       - name: Install Snowflake CLI
         run: pip install snowflake-cli
 
+      - name: Write private key file
+        run: |
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
+
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
@@ -528,14 +531,14 @@ jobs:
           chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
+          account          = "xna38553.east-us-2.azure"
+          user             = "CI_DEPLOY_SVC"
+          authenticator    = "snowflake_jwt"
+          private_key_path = "/tmp/ci_rsa_key.p8"
+          warehouse        = "ANALYTICS_WH"
+          database         = "SANDBOX"
+          schema           = "TPCH"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
       - name: List discovered apps
@@ -563,6 +566,11 @@ jobs:
       - name: Install Snowflake CLI
         run: pip install snowflake-cli
 
+      - name: Write private key file
+        run: |
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
+
       - name: Configure Snowflake connection
         run: |
           mkdir -p ~/.snowflake
@@ -570,14 +578,14 @@ jobs:
           chmod 0600 ~/.snowflake/config.toml
           cat > ~/.snowflake/config.toml << EOF
           [connections.${{ env.SNOW_CONN }}]
-          account       = "xna38553.east-us-2.azure"
-          user          = "MCP_SERVICE_USER"
-          authenticator = "PROGRAMMATIC_ACCESS_TOKEN"
-          token         = "${{ secrets.SNOWFLAKE_PAT }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "ACCOUNTADMIN"
+          account          = "xna38553.east-us-2.azure"
+          user             = "CI_DEPLOY_SVC"
+          authenticator    = "snowflake_jwt"
+          private_key_path = "/tmp/ci_rsa_key.p8"
+          warehouse        = "ANALYTICS_WH"
+          database         = "SANDBOX"
+          schema           = "TPCH"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
       - name: List discovered agents
@@ -605,11 +613,16 @@ jobs:
       - name: Install eval dependencies
         run: pip install snowflake-connector-python pyyaml
 
+      - name: Write private key file
+        run: |
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
+
       - name: Run evaluation suites for all agents
         env:
-          SNOWFLAKE_ACCOUNT: "xna38553.east-us-2.azure"
-          SNOWFLAKE_USER:    "MCP_SERVICE_USER"
-          SNOWFLAKE_PAT:     ${{ secrets.SNOWFLAKE_PAT }}
+          SNOWFLAKE_ACCOUNT:          "xna38553.east-us-2.azure"
+          SNOWFLAKE_USER:             "CI_DEPLOY_SVC"
+          SNOWFLAKE_PRIVATE_KEY_PATH: "/tmp/ci_rsa_key.p8"
         run: python agent/run_evals.py --all
 
       - name: Upload eval results
@@ -626,8 +639,6 @@ jobs:
   cleanup-clone:
     name: Drop Branch Clone DB
     needs: [clone-db, deploy-dcm, deploy-ml-models, deploy-ingestion, deploy-dbt, deploy-streamlit, deploy-agent, run-agent-evals]
-    # Run even if earlier jobs failed so clone is always cleaned up.
-    # Skip for: PROD deploys | keep_clone=true | clone-db was skipped
     if: >-
       always() &&
       github.event_name == 'workflow_dispatch' &&
@@ -646,8 +657,8 @@ jobs:
 
       - name: Write private key file
         run: |
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" | base64 --decode > /tmp/rsa_key.p8
-          chmod 600 /tmp/rsa_key.p8
+          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          chmod 600 /tmp/ci_rsa_key.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -657,13 +668,13 @@ jobs:
           cat > ~/.snowflake/config.toml << EOF
           [connections.dev]
           account          = "xna38553.east-us-2.azure"
-          user             = "DBT_GITHUB_ACTIONS_SVC"
+          user             = "CI_DEPLOY_SVC"
           authenticator    = "snowflake_jwt"
-          private_key_path = "/tmp/rsa_key.p8"
+          private_key_path = "/tmp/ci_rsa_key.p8"
           warehouse        = "ANALYTICS_WH"
           database         = "SANDBOX"
           schema           = "TPCH"
-          role             = "RETAIL_CATEGORY_ANALYTICS_ROLE"
+          role             = "CI_DEPLOY_ROLE"
           EOF
 
       - name: Drop branch clone database
@@ -671,7 +682,6 @@ jobs:
           CLONE_DB="${{ needs.clone-db.outputs.clone_db }}"
           snow sql -q "DROP DATABASE IF EXISTS ${CLONE_DB};" -c dev
           echo "Dropped clone: ${CLONE_DB}"
-
           echo "## Cleanup" >> $GITHUB_STEP_SUMMARY
           echo "Clone database \`${CLONE_DB}\` has been dropped." >> $GITHUB_STEP_SUMMARY
 
