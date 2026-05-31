@@ -146,6 +146,8 @@ jobs:
               TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
             GRANT OWNERSHIP ON ALL STAGES IN DATABASE ${CLONE_DB}
               TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
+            GRANT OWNERSHIP ON ALL FILE FORMATS IN DATABASE ${CLONE_DB}
+              TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
           " -c dev
 
   # ─────────────────────────────────────────────────────────────────────────────
