@@ -132,11 +132,20 @@ jobs:
           " -c dev
           echo "Created clone: ${CLONE_DB}"
 
-      - name: Grant usage on clone to CI role
+      - name: Transfer ownership of clone objects to CI_DEPLOY_ROLE
         run: |
           CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
           snow sql -q "
-            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE CI_DEPLOY_ROLE;
+            GRANT OWNERSHIP ON DATABASE ${CLONE_DB}
+              TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
+            GRANT OWNERSHIP ON ALL SCHEMAS IN DATABASE ${CLONE_DB}
+              TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
+            GRANT OWNERSHIP ON ALL TABLES IN DATABASE ${CLONE_DB}
+              TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
+            GRANT OWNERSHIP ON ALL VIEWS IN DATABASE ${CLONE_DB}
+              TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
+            GRANT OWNERSHIP ON ALL STAGES IN DATABASE ${CLONE_DB}
+              TO ROLE CI_DEPLOY_ROLE COPY CURRENT GRANTS;
           " -c dev
 
   # ─────────────────────────────────────────────────────────────────────────────
