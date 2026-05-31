@@ -408,6 +408,7 @@ jobs:
         run: |
           export SNOWFLAKE_ACCOUNT="xna38553.east-us-2.azure"
           export SNOWFLAKE_USER="CI_DEPLOY_SVC"
+          export SNOWFLAKE_ROLE="CI_DEPLOY_ROLE"
           export SNOWFLAKE_PRIVATE_KEY_PATH="/tmp/ci_rsa_key.p8"
           if [ "${{ env.DEPLOY_ENV }}" = "PROD" ]; then
             export SNOWFLAKE_DATABASE="SANDBOX"

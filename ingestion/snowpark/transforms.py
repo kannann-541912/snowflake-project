@@ -120,8 +120,8 @@ if __name__ == "__main__":
 
     connection_params = {
         "account":   os.environ.get("SNOWFLAKE_ACCOUNT", "xna38553.east-us-2.azure"),
-        "user":      os.environ.get("SNOWFLAKE_USER", "MCP_SERVICE_USER"),
-        "role":      os.getenv("SNOWFLAKE_ROLE", "ACCOUNTADMIN"),
+        "user":      os.environ.get("SNOWFLAKE_USER", "CI_DEPLOY_SVC"),
+        "role":      os.getenv("SNOWFLAKE_ROLE", "CI_DEPLOY_ROLE"),
         "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "ANALYTICS_WH"),
         "database":  database,
         "schema":    "TPCH",
