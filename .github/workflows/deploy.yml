@@ -87,9 +87,14 @@ jobs:
         run: pip install snowflake-cli
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -154,9 +159,14 @@ jobs:
         run: pip install snowflake-cli
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -238,9 +248,14 @@ jobs:
         run: pip install snowflake-cli
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -315,9 +330,14 @@ jobs:
         run: pip install snowflake-cli snowflake-snowpark-python nipyapi
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -520,9 +540,14 @@ jobs:
         run: pip install snowflake-cli
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -567,9 +592,14 @@ jobs:
         run: pip install snowflake-cli
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
@@ -614,9 +644,14 @@ jobs:
         run: pip install snowflake-connector-python pyyaml
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Run evaluation suites for all agents
         env:
@@ -656,9 +691,14 @@ jobs:
         run: pip install snowflake-cli
 
       - name: Write private key file
+        env:
+          KEY_B64: ${{ secrets.CI_DEPLOY_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.CI_DEPLOY_PRIVATE_KEY }}" | base64 --decode > /tmp/ci_rsa_key.p8
+          printf '%s' "$KEY_B64" | base64 -d > /tmp/ci_rsa_key_raw.p8
+          openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+            -in /tmp/ci_rsa_key_raw.p8 -out /tmp/ci_rsa_key.p8
           chmod 600 /tmp/ci_rsa_key.p8
+          rm -f /tmp/ci_rsa_key_raw.p8
 
       - name: Configure Snowflake connection
         run: |
