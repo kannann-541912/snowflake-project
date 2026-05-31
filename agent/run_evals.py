@@ -150,9 +150,10 @@ def invoke_agent(conn, agent_fqn: str, question: str) -> dict:
     Cortex Agents are not exposed as a SQL UDF — they require an HTTP call
     with a JWT Bearer token, which we derive from the live connector session.
     """
-    account = conn.account
-    host    = f"{account}.snowflakecomputing.com"
-    token   = conn.rest.token
+    # conn.host is the full hostname the connector resolved (e.g. xna38553.east-us-2.azure.snowflakecomputing.com)
+    # conn.account strips the region, so we must use conn.host directly.
+    host  = conn.host
+    token = conn.rest.token
 
     # Cortex Agents REST endpoint: /api/v2/cortex/agents/{db}/{schema}/{name}:run
     db, schema, name = agent_fqn.upper().split(".")
