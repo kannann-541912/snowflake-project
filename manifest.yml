@@ -5,12 +5,12 @@ default_target: 'DEV'
 targets:
   DEV:
     project_name: 'SANDBOX.TPCH.DATA_PLATFORM_DEV'
-    project_owner: ACCOUNTADMIN
+    project_owner: CI_DEPLOY_ROLE
     account_identifier: 'A5701997473071-MPA05784'
     templating_config: 'DEV'
   PROD:
     project_name: 'SANDBOX.TPCH.DATA_PLATFORM'
-    project_owner: ACCOUNTADMIN
+    project_owner: CI_DEPLOY_ROLE
     account_identifier: 'A5701997473071-MPA05784'
     templating_config: 'PROD'
   # CI target — database name is SANDBOX_CI (placeholder).
