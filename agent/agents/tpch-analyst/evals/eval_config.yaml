@@ -10,7 +10,7 @@ eval_suite:
 connection:
   profile: "default"
   account: "xna38553.east-us-2.azure"
-  user: "MCP_SERVICE_USER"
+  user: "CI_DEPLOY_SVC"
   database: "SANDBOX"
   schema: "TPCH"
   warehouse: "ANALYTICS_WH"
