@@ -18,7 +18,7 @@ targets:
   # branch clone database name (e.g. SANDBOX_FEATURE_NEW_AGENT) via sed.
   CI:
     project_name: 'SANDBOX_CI.TPCH.DATA_PLATFORM_CI'
-    project_owner: ACCOUNTADMIN
+    project_owner: CI_DEPLOY_ROLE
     account_identifier: 'A5701997473071-MPA05784'
     templating_config: 'DEV'
 
