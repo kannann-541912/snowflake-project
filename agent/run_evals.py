@@ -151,29 +151,28 @@ def invoke_agent(conn, agent_fqn: str, question: str) -> dict:
     with a JWT Bearer token, which we derive from the live connector session.
     """
     account = conn.account
-    # Normalise account identifier to the host format Snowflake REST expects
-    host = f"{account}.snowflakecomputing.com"
+    host    = f"{account}.snowflakecomputing.com"
+    token   = conn.rest.token
 
-    # Extract the session token from the active connector so we can reuse it
-    # as a Bearer token for the REST call.
-    token = conn.rest.token
+    # Cortex Agents REST endpoint: /api/v2/cortex/agents/{db}/{schema}/{name}:run
+    db, schema, name = agent_fqn.upper().split(".")
+    url = f"https://{host}/api/v2/cortex/agents/{db}/{schema}/{name}:run"
 
-    url = f"https://{host}/api/v2/cortex/agent:run"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type":  "application/json",
         "Accept":        "application/json",
-        "X-Snowflake-Authorization-Token-Type": "OAUTH",
+        "X-Snowflake-Authorization-Token-Type": "SNOWFLAKE_TOKEN",
     }
     payload = {
-        "model":    agent_fqn,
         "messages": [{"role": "user", "content": [{"type": "text", "text": question}]}],
     }
 
+    print(f"  [INVOKE] POST {url}")
     resp = requests.post(url, headers=headers, json=payload, timeout=120)
     if resp.status_code != 200:
         return {"content": "", "tool_calls": [],
-                "error": f"HTTP {resp.status_code}: {resp.text[:400]}"}
+                "error": f"HTTP {resp.status_code}: {resp.text[:600]}"}
 
     # Response is SSE / newline-delimited JSON — collect text and tool-use events
     text_parts: list[str] = []
