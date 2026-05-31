@@ -68,71 +68,71 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   # 1. Clone DB — DEV only: zero-copy clone SANDBOX → SANDBOX_<BRANCH>
   # ─────────────────────────────────────────────────────────────────────────────
-  clone-db:
-    name: Create Branch Clone DB
-    needs: guard
-    runs-on: ubuntu-latest
-    # Only runs for manual DEV dispatches — push to main (PROD) skips this job
-    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'DEV'
-    outputs:
-      clone_db: ${{ steps.set-clone-name.outputs.clone_db }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Snowflake CLI
-        run: pip install snowflake-cli
-
-      - name: Configure Snowflake connection
-        run: |
-          mkdir -p ~/.snowflake
-          touch ~/.snowflake/config.toml
-          chmod 0600 ~/.snowflake/config.toml
-          cat > ~/.snowflake/config.toml << EOF
-          [connections.dev]
-          account       = "xna38553.east-us-2.azure"
-          user          = "DBT_GITHUB_ACTIONS_SVC"
-          authenticator = "snowflake_jwt"
-          token         = "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}"
-          warehouse     = "ANALYTICS_WH"
-          database      = "SANDBOX"
-          schema        = "TPCH"
-          role          = "RETAIL_CATEGORY_ANALYTICS_ROLE"
-          EOF
-
-      - name: Compute clone database name
-        id: set-clone-name
-        run: |
-          # Sanitize branch name: lowercase → uppercase, replace / - . with _
-          # Truncate to 30 chars to stay within Snowflake identifier limits
-          BRANCH="${{ github.ref_name }}"
-          SAFE=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]' | tr '/.-' '_' | cut -c1-30)
-          CLONE_DB="SANDBOX_${SAFE}"
-          echo "clone_db=${CLONE_DB}" >> $GITHUB_OUTPUT
-          echo "Clone database: ${CLONE_DB}"
-
-          echo "| Clone DB | \`${CLONE_DB}\` |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Create zero-copy clone of SANDBOX
-        run: |
-          CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
-          snow sql -q "
-            CREATE OR REPLACE DATABASE ${CLONE_DB} CLONE SANDBOX
-              COMMENT = 'Branch clone for ${{ github.ref_name }} — run ${{ github.run_id }}';
-          " -c dev
-          echo "Created clone: ${CLONE_DB}"
-
-      - name: Grant usage on clone to service user
-        run: |
-          CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
-          snow sql -q "
-            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE ACCOUNTADMIN;
-          " -c dev
+#  clone-db:
+#    name: Create Branch Clone DB
+#    needs: guard
+#    runs-on: ubuntu-latest
+#    # Only runs for manual DEV dispatches — push to main (PROD) skips this job
+#    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'DEV'
+#    outputs:
+#      clone_db: ${{ steps.set-clone-name.outputs.clone_db }}
+#
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      - name: Install Snowflake CLI
+#        run: pip install snowflake-cli
+#
+#      - name: Configure Snowflake connection
+#        run: |
+#          mkdir -p ~/.snowflake
+#          touch ~/.snowflake/config.toml
+#          chmod 0600 ~/.snowflake/config.toml
+#          cat > ~/.snowflake/config.toml << EOF
+#          [connections.dev]
+#          account       = "xna38553.east-us-2.azure"
+#          user          = "DBT_GITHUB_ACTIONS_SVC"
+#          authenticator = "snowflake_jwt"
+#          token         = "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}"
+#          warehouse     = "ANALYTICS_WH"
+#          database      = "SANDBOX"
+#          schema        = "TPCH"
+#          role          = "RETAIL_CATEGORY_ANALYTICS_ROLE"
+#          EOF
+#
+#      - name: Compute clone database name
+#        id: set-clone-name
+#        run: |
+#          # Sanitize branch name: lowercase → uppercase, replace / - . with _
+#          # Truncate to 30 chars to stay within Snowflake identifier limits
+#          BRANCH="${{ github.ref_name }}"
+#          SAFE=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]' | tr '/.-' '_' | cut -c1-30)
+#          CLONE_DB="SANDBOX_${SAFE}"
+#          echo "clone_db=${CLONE_DB}" >> $GITHUB_OUTPUT
+#          echo "Clone database: ${CLONE_DB}"
+#
+#          echo "| Clone DB | \`${CLONE_DB}\` |" >> $GITHUB_STEP_SUMMARY
+#
+#      - name: Create zero-copy clone of SANDBOX
+#        run: |
+#          CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
+#          snow sql -q "
+#            CREATE OR REPLACE DATABASE ${CLONE_DB} CLONE SANDBOX
+#              COMMENT = 'Branch clone for ${{ github.ref_name }} — run ${{ github.run_id }}';
+#          " -c dev
+#          echo "Created clone: ${CLONE_DB}"
+#
+#      - name: Grant usage on clone to service user
+#        run: |
+#          CLONE_DB="${{ steps.set-clone-name.outputs.clone_db }}"
+#          snow sql -q "
+#            GRANT ALL PRIVILEGES ON DATABASE ${CLONE_DB} TO ROLE ACCOUNTADMIN;
+#          " -c dev
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 2. DCM — deploy schema objects
@@ -400,8 +400,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-dbt:
     name: Deploy dbt Models
-    needs: [guard, clone-db]
-    if: always() && needs.guard.result == 'success' && (needs.clone-db.result == 'success' || needs.clone-db.result == 'skipped')
+    needs: [guard]
+    if: always() && needs.guard.result == 'success'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -473,7 +473,7 @@ jobs:
         # Warn-only on DEV — clone data may not be fresh
         continue-on-error: ${{ env.DEPLOY_ENV == 'DEV' }}
         env:
-          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          DBT_DB: "SANDBOX"
           SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt source freshness --vars "{\"source_database\": \"${DBT_DB}\"}"
@@ -481,7 +481,7 @@ jobs:
       - name: dbt debug
         env:
           SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
-          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          DBT_DB: "SANDBOX"
         run: |
           cat ~/.dbt/profiles.yml
           echo "************************************"
@@ -491,21 +491,21 @@ jobs:
 
       - name: dbt run
         env:
-          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          DBT_DB: "SANDBOX"
           SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt run --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
       - name: dbt test
         env:
-          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          DBT_DB: "SANDBOX"
           SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt test --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
       - name: dbt snapshot
         env:
-          DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          DBT_DB: "SANDBOX"
           SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt snapshot --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
