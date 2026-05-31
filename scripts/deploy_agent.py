@@ -99,7 +99,7 @@ def build_sql(agent_dir: Path, spec_version: str | None) -> str:
 
     fqn      = agent_cfg["fqn"]
     spec_json = json.dumps(spec, indent=2)
-    return f"CREATE OR REPLACE AGENT {fqn}\nFROM SPECIFICATION $spec$\n{spec_json}\n$spec$;"
+    return f"CREATE OR REPLACE AGENT {fqn}\nFROM SPECIFICATION $$\n{spec_json}\n$$;"
 
 
 def main() -> None:

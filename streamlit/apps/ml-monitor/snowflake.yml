@@ -7,8 +7,5 @@ entities:
       schema: TPCH
       database: SANDBOX
     title: "ML Model Monitor"
-    query_warehouse: COMPUTE_WH
+    query_warehouse: ANALYTICS_WH
     main_file: main.py
-    pages_dir: pages/
-    additional_source_files:
-      - ../../shared/utils.py

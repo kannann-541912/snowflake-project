@@ -8,7 +8,7 @@
 -- Child tasks run only when their upstream stream has data.
 CREATE OR REPLACE TASK SANDBOX.TPCH.PIPELINE_ROOT_TASK
     WAREHOUSE = ANALYTICS_WH
-    SCHEDULE  = 'USING CRON 5 6 * * * UTC'   -- 06:05 UTC daily (after Airflow load)
+    SCHEDULE  = 'USING CRON 5 6 * * * UTC'
     COMMENT   = 'Root task — triggers the ingestion pipeline DAG'
 AS
     SELECT 'Pipeline triggered at ' || CURRENT_TIMESTAMP();
@@ -18,9 +18,9 @@ AS
 -- Runs after root task, only if the stream has new rows.
 CREATE OR REPLACE TASK SANDBOX.TPCH.MERGE_CUSTOMERS_TASK
     WAREHOUSE = ANALYTICS_WH
+    COMMENT   = 'Upsert raw customers into SANDBOX.TPCH.CUSTOMERS'
     AFTER     SANDBOX.TPCH.PIPELINE_ROOT_TASK
     WHEN      SYSTEM$STREAM_HAS_DATA('SANDBOX.TPCH_LANDING.CUSTOMERS_RAW_STREAM')
-    COMMENT   = 'Upsert raw customers into SANDBOX.TPCH.CUSTOMERS'
 AS
     MERGE INTO SANDBOX.TPCH.CUSTOMERS AS tgt
     USING (
@@ -46,9 +46,9 @@ AS
 -- Task 2: Load raw orders into curated table (append-only stream).
 CREATE OR REPLACE TASK SANDBOX.TPCH.LOAD_ORDERS_TASK
     WAREHOUSE = ANALYTICS_WH
+    COMMENT   = 'Insert new orders from stream into SANDBOX.TPCH.ORDERS'
     AFTER     SANDBOX.TPCH.PIPELINE_ROOT_TASK
     WHEN      SYSTEM$STREAM_HAS_DATA('SANDBOX.TPCH_LANDING.ORDERS_RAW_STREAM')
-    COMMENT   = 'Insert new orders from stream into SANDBOX.TPCH.ORDERS'
 AS
     INSERT INTO SANDBOX.TPCH.ORDERS
         (ORDER_ID, CUSTOMER_ID, ORDER_DATE, TOTAL_AMOUNT, STATUS)
@@ -68,12 +68,10 @@ AS
 -- (runs after both merge and load tasks complete).
 CREATE OR REPLACE TASK SANDBOX.TPCH.REFRESH_SUMMARY_TASK
     WAREHOUSE = ANALYTICS_WH
+    COMMENT   = 'Placeholder for any post-load refresh logic (dynamic tables auto-refresh)'
     AFTER     SANDBOX.TPCH.MERGE_CUSTOMERS_TASK,
               SANDBOX.TPCH.LOAD_ORDERS_TASK
-    COMMENT   = 'Placeholder for any post-load refresh logic (dynamic tables auto-refresh)'
 AS
-    -- If using a Dynamic Table instead of a VIEW, trigger a manual refresh here:
-    -- ALTER DYNAMIC TABLE SANDBOX.TPCH.CUSTOMER_ORDER_SUMMARY REFRESH;
     SELECT 'Summary refresh complete at ' || CURRENT_TIMESTAMP();
 
 

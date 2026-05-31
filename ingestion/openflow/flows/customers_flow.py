@@ -217,7 +217,9 @@ def connect_to_runtime(runtime_url: str) -> None:
     nifi_config.nifi_config.host = f"{runtime_url}/nifi-api"
     # For SPCS, the session token is injected via SPCS environment automatically.
     # For BYOC, set nifi_config.nifi_config.username / password or token here.
-    nipyapi.utils.start_logger()
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("nipyapi").setLevel(logging.INFO)
 
 
 def create_process_group(name: str) -> object:
