@@ -1,0 +1,3 @@
+# REMOVED: pyproject.toml is not used by warehouse runtime.
+# Warehouse runtime uses environment.yml exclusively.
+# This file is intentionally empty.

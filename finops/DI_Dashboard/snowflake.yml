@@ -1,0 +1,12 @@
+definition_version: 2
+entities:
+  streamlit_app:
+    type: streamlit
+    title: Account FinOps Intelligence Solution
+    query_warehouse: ADMIN_WH
+    main_file: streamlit_app.py_old
+    artifacts:
+      - environment.yml
+      - streamlit_app.py_old
+      - styles.py
+      - .streamlit/config.toml

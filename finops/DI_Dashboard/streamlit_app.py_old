@@ -1,0 +1,146 @@
+import streamlit as st
+import pandas as pd
+from snowflake.snowpark.context import get_active_session
+from styles import apply_theme, app_header
+
+st.set_page_config(layout="wide")
+
+session = get_active_session()
+apply_theme()
+
+
+@st.cache_data(ttl=600)
+def run_query(sql):
+    try:
+        return session.sql(sql).to_pandas()
+    except Exception as e:
+        st.warning(f"Query issue: {str(e)[:200]}")
+        return pd.DataFrame()
+
+
+app_header("Account FinOps Intelligence Solution", "AI Augmented by Knowledge Base")
+
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Data", " Quality", "AI", "Spend"
+])
+
+with tab1:
+    st.header("Data")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Data Modality Map")
+        df_mod = run_query("SELECT DATA_MODALITY, COLUMN_COUNT, TABLE_COUNT FROM ADMIN_DB.OPS.OPS_DATA_MODALITY ORDER BY COLUMN_COUNT DESC")
+        if not df_mod.empty:
+            st.bar_chart(df_mod, x="DATA_MODALITY", y="COLUMN_COUNT")
+        st.dataframe(df_mod, use_container_width=True)
+
+    with col2:
+        st.subheader("VARIANT Data Richness")
+        df_var = run_query("SELECT VARIANT_COLUMN, STRUCTURE_TYPE, ROW_COUNT, UNIQUE_KEYS FROM ADMIN_DB.OPS.OPS_VARIANT_RICHNESS")
+        st.dataframe(df_var, use_container_width=True)
+
+    st.divider()
+    st.info(
+        "DEMO_DEV handles **7+ data modalities** natively in Snowflake: "
+        "Structured Numeric, Structured Text, Semi-Structured JSON (VARIANT), "
+        "ML Features/Predictions, AI-Generated Text, Temporal, and Boolean Flags."
+    )
+
+with tab2:
+    st.header("Quality")
+
+    st.subheader("DQ Audit Summary")
+    df_dq = run_query("SELECT TABLE_NAME, CHECK_TYPE, CHECK_COUNT, UNIQUE_SOURCES, COLUMNS_FLAGGED, LATEST_AUDIT FROM ADMIN_DB.OPS.OPS_DQ_AUDIT_SUMMARY ORDER BY CHECK_COUNT DESC")
+    if not df_dq.empty:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Checks", int(df_dq["CHECK_COUNT"].sum()))
+        c2.metric("Tables Audited", df_dq["TABLE_NAME"].nunique())
+        c3.metric("Columns Flagged", int(df_dq["COLUMNS_FLAGGED"].sum()))
+        st.bar_chart(df_dq.groupby("CHECK_TYPE")["CHECK_COUNT"].sum().reset_index(), x="CHECK_TYPE", y="CHECK_COUNT")
+    st.dataframe(df_dq, use_container_width=True)
+
+with tab3:
+    st.header("AI")
+
+    st.subheader("Model Evaluation")
+    df_eval = run_query("SELECT MODEL_NAME, VERSION_NAME, ALGORITHM, AUC, ACCURACY, PRECISION_SCORE, RECALL_SCORE, F1_SCORE, RUN_AT FROM ADMIN_DB.OPS.OPS_ML_EVALUATION ORDER BY RUN_AT DESC")
+    if not df_eval.empty:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("AUC", f"{df_eval['AUC'].iloc[0]:.4f}")
+        c2.metric("Accuracy", f"{df_eval['ACCURACY'].iloc[0]:.4f}")
+        c3.metric("Precision", f"{df_eval['PRECISION_SCORE'].iloc[0]:.4f}")
+        c4.metric("F1", f"{df_eval['F1_SCORE'].iloc[0]:.4f}")
+    st.dataframe(df_eval, use_container_width=True)
+
+    st.subheader("Inference Run History")
+    df_inf = run_query("SELECT MODEL_NAME, VERSION_NAME, PATIENT_COUNT, EXECUTION_TIME_MS, STATUS, RUN_AT FROM ADMIN_DB.OPS.OPS_ML_INFERENCE ORDER BY RUN_AT DESC")
+    if not df_inf.empty:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Runs", len(df_inf))
+        c2.metric("Avg Exec Time (ms)", f"{df_inf['EXECUTION_TIME_MS'].mean():.0f}")
+        c3.metric("Patients Scored", f"{int(df_inf['PATIENT_COUNT'].sum()):,}")
+    st.dataframe(df_inf, use_container_width=True)
+
+with tab4:
+    st.header("Spend")
+
+    st.subheader("Agent Cost Breakdown")
+    df_agent = run_query("SELECT AGENT_NAME, RUNS, TOTAL_TOKENS, TOTAL_CREDITS, AVG_TOKENS_PER_RUN, AVG_CREDITS_PER_RUN FROM ADMIN_DB.OPS.OPS_AGENT_COST ORDER BY TOTAL_CREDITS DESC")
+    if not df_agent.empty:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Agent Runs", int(df_agent["RUNS"].sum()))
+        c2.metric("Total Tokens", f"{int(df_agent['TOTAL_TOKENS'].sum()):,}")
+        c3.metric("Total Credits", f"{df_agent['TOTAL_CREDITS'].sum():.4f}")
+        st.bar_chart(df_agent, x="AGENT_NAME", y="TOTAL_CREDITS")
+    st.dataframe(df_agent, use_container_width=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("AI Function Usage by Model")
+        df_func = run_query("SELECT FUNCTION_NAME, MODEL_NAME, CALL_COUNT, TOTAL_CREDITS FROM ADMIN_DB.OPS.OPS_AI_FUNCTION_USAGE ORDER BY TOTAL_CREDITS DESC")
+        if not df_func.empty:
+            st.bar_chart(df_func, x="MODEL_NAME", y="TOTAL_CREDITS")
+        st.dataframe(df_func, use_container_width=True)
+
+    with col2:
+        st.subheader("Daily AI Spend Trend")
+        df_daily = run_query("SELECT DAY, AGENT_RUNS, DAILY_TOKENS, DAILY_CREDITS FROM ADMIN_DB.OPS.OPS_DAILY_AI_SPEND ORDER BY DAY")
+        if not df_daily.empty:
+            st.line_chart(df_daily, x="DAY", y="DAILY_CREDITS")
+        st.dataframe(df_daily, use_container_width=True)
+
+st.divider()
+st.subheader("Ask FinOps Advisor")
+
+if "advisor_messages" not in st.session_state:
+    st.session_state["advisor_messages"] = []
+
+for msg in st.session_state["advisor_messages"]:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+if user_question := st.chat_input("Ask about AI costs, data quality, models, or data architecture..."):
+    st.session_state["advisor_messages"].append({"role": "user", "content": user_question})
+    with st.chat_message("user"):
+        st.markdown(user_question)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Querying..."):
+            try:
+                analyst_response = session.sql(
+                    "SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large2', "
+                    "CONCAT('You are a FinOps Advisor. Answer concisely using this context from the semantic view ADMIN_DB.OPS.FINOPS_ADVISOR. ', "
+                    "?)) AS RESPONSE",
+                    params=[user_question]
+                ).collect()[0]["RESPONSE"]
+
+
+                st.markdown(analyst_response)
+                st.session_state["advisor_messages"].append({"role": "assistant", "content": analyst_response})
+            except Exception as e:
+                error_msg = f"Unable to process: {str(e)[:300]}"
+                st.warning(error_msg)
+                st.session_state["advisor_messages"].append({"role": "assistant", "content": error_msg})

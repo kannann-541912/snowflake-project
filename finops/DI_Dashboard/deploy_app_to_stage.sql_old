@@ -1,0 +1,66 @@
+------------------------------------------------------------------------
+-- Deploy FinOps Dashboard Streamlit App to Stage (Warehouse Runtime)
+-- Run with SYSADMIN on ADMIN_WH after setup_ops_tables.sql
+------------------------------------------------------------------------
+
+USE ROLE SYSADMIN;
+USE WAREHOUSE ADMIN_WH;
+
+------------------------------------------------------------------------
+-- 1. CREATE STAGE
+------------------------------------------------------------------------
+
+CREATE STAGE IF NOT EXISTS ADMIN_DB.OPS.FINOPS_DASHBOARD_STAGE
+    DIRECTORY = (ENABLE = TRUE)
+    COMMENT = 'Stage for FinOps Dashboard Streamlit app files';
+
+------------------------------------------------------------------------
+-- 2. COPY WORKSPACE FILES TO STAGE
+------------------------------------------------------------------------
+REMOVE @ADMIN_DB.OPS.FINOPS_DASHBOARD_STAGE;
+
+
+COPY FILES INTO @ADMIN_DB.OPS.FINOPS_DASHBOARD_STAGE/app/
+FROM 'snow://workspace/USER$.PUBLIC.DEFAULT$/versions/live/00_Acc_Config/DI_Dashboard'
+FILES = (
+    'streamlit_app.py',
+    'styles.py',
+    'environment.yml'
+);
+
+COPY FILES INTO @ADMIN_DB.OPS.FINOPS_DASHBOARD_STAGE/app/.streamlit/
+FROM 'snow://workspace/USER$.PUBLIC.DEFAULT$/versions/live/00_Acc_Config/DI_Dashboard/.streamlit'
+FILES = ('config.toml');
+
+------------------------------------------------------------------------
+-- 3. VERIFY FILES ON STAGE
+------------------------------------------------------------------------
+
+LIST @ADMIN_DB.OPS.FINOPS_DASHBOARD_STAGE/app;
+
+------------------------------------------------------------------------
+-- 4. CREATE STREAMLIT APP (WAREHOUSE RUNTIME)
+------------------------------------------------------------------------
+
+CREATE OR REPLACE STREAMLIT ADMIN_DB.OPS.FINOPS_DASHBOARD
+    FROM '@ADMIN_DB.OPS.FINOPS_DASHBOARD_STAGE/app'
+    MAIN_FILE = 'streamlit_app.py'
+    QUERY_WAREHOUSE = ADMIN_WH
+    TITLE = 'Account FinOps Intelligence Solution'
+    COMMENT = 'FinOps dashboard: Data Architecture, Quality, ML Ops, AI Credit Economics';
+
+------------------------------------------------------------------------
+-- 5. MAKE IT LIVE
+------------------------------------------------------------------------
+
+ALTER STREAMLIT ADMIN_DB.OPS.FINOPS_DASHBOARD ADD LIVE VERSION FROM LAST;
+
+------------------------------------------------------------------------
+-- 6. GRANTS
+------------------------------------------------------------------------
+
+GRANT USAGE ON STREAMLIT ADMIN_DB.OPS.FINOPS_DASHBOARD TO ROLE SYSADMIN;
+
+------------------------------------------------------------------------
+-- DONE. Access via: Projects > Streamlit > FINOPS_DASHBOARD
+------------------------------------------------------------------------
