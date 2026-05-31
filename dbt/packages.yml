@@ -16,6 +16,8 @@ packages:
   - package: dbt-labs/codegen
     version: [">=0.13.0", "<1.0.0"]
 
-  # Elementary: data observability — anomaly detection, schema changes, test results
-  - package: elementary-data/elementary
-    version: [">=0.16.0", "<1.0.0"]
+  # Elementary: data observability — disabled in CI due to Snowflake SQL compatibility issue
+  # (on-run-end hooks use 'order' as an unquoted identifier, causing SQL compilation errors)
+  # Re-enable after running: dbt run --select elementary  to initialize its schema first.
+  # - package: elementary-data/elementary
+  #   version: [">=0.16.0", "<1.0.0"]

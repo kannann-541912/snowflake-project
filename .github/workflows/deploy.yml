@@ -97,7 +97,7 @@ jobs:
           [connections.dev]
           account       = "xna38553.east-us-2.azure"
           user          = "DBT_GITHUB_ACTIONS_SVC"
-          authenticator = snowflake_jwt
+          authenticator = "snowflake_jwt"
           token         = "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}"
           warehouse     = "ANALYTICS_WH"
           database      = "SANDBOX"
@@ -400,8 +400,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-dbt:
     name: Deploy dbt Models
-#    needs: [deploy-ingestion, clone-db]
-#    if: always() && needs.deploy-ingestion.result == 'success'
+    needs: [guard, clone-db]
+    if: always() && needs.guard.result == 'success' && (needs.clone-db.result == 'success' || needs.clone-db.result == 'skipped')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -471,11 +471,12 @@ jobs:
 
       - name: dbt source freshness
         # Warn-only on DEV — clone data may not be fresh
+        continue-on-error: ${{ env.DEPLOY_ENV == 'DEV' }}
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
           SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
-          dbt source freshness --vars "{\"source_database\": \"${DBT_DB}\"}" || $( [ "${{ env.DEPLOY_ENV }}" = "DEV" ] && echo "true" || echo "false" )
+          dbt source freshness --vars "{\"source_database\": \"${DBT_DB}\"}"
           
       - name: dbt debug
         env:
@@ -498,12 +499,14 @@ jobs:
       - name: dbt test
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt test --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
       - name: dbt snapshot
         env:
           DBT_DB: ${{ env.DEPLOY_ENV == 'PROD' && 'SANDBOX' || needs.clone-db.outputs.clone_db }}
+          SNOWFLAKE_PRIVATE_KEY_PATH: "${{ github.workspace }}/rsa_key.p8"
         run: |
           dbt snapshot --target ${{ env.DBT_TARGET }} --vars "{\"source_database\": \"${DBT_DB}\"}"
 
