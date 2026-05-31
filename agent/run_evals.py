@@ -172,27 +172,36 @@ def invoke_agent(conn, agent_fqn: str, question: str) -> dict:
 
     resp = requests.post(url, headers=headers, json=payload, timeout=120)
     if resp.status_code != 200:
-        return {"error": f"HTTP {resp.status_code}: {resp.text[:400]}"}
+        return {"content": "", "tool_calls": [],
+                "error": f"HTTP {resp.status_code}: {resp.text[:400]}"}
 
-    # Response is newline-delimited JSON (SSE-style); collect the last delta
-    text_parts = []
+    # Response is SSE / newline-delimited JSON — collect text and tool-use events
+    text_parts: list[str] = []
+    tool_calls: list[dict] = []
+
     for line in resp.text.splitlines():
         line = line.strip()
         if not line or line.startswith(":"):
             continue
         if line.startswith("data:"):
             line = line[len("data:"):].strip()
+        if line == "[DONE]":
+            break
         try:
             chunk = json.loads(line)
             for choice in chunk.get("choices", []):
-                delta = choice.get("delta", {})
-                for part in delta.get("content", []):
+                for part in choice.get("delta", {}).get("content", []):
                     if part.get("type") == "text":
                         text_parts.append(part.get("text", ""))
+                    elif part.get("type") in ("tool_use", "tool_call"):
+                        tool_calls.append({
+                            "name":  part.get("name") or part.get("tool_use", {}).get("name", ""),
+                            "input": part.get("input") or part.get("tool_use", {}).get("input", {}),
+                        })
         except (json.JSONDecodeError, KeyError):
             continue
 
-    return {"content": "".join(text_parts)}
+    return {"content": "".join(text_parts), "tool_calls": tool_calls}
 
 
 def judge_response(conn, config: dict, question: str, agent_response: str, expected_behavior: str) -> dict:
@@ -268,12 +277,14 @@ def save_results_snowflake(conn, config: dict, results: list[dict], run_id: str)
         )
     """)
     for r in results:
+        # Use SELECT instead of VALUES so PARSE_JSON() function calls are valid
+        # with parameterized queries (Snowflake disallows function calls in VALUES).
         conn.cursor().execute(
             f"""
             INSERT INTO {table}
                 (RUN_ID, QUESTION_ID, CATEGORY, QUESTION,
                  OVERALL_SCORE, TOOL_CORRECT, PASSED, JUDGE_SCORES, AGENT_RESPONSE)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, PARSE_JSON(%s), PARSE_JSON(%s))
+            SELECT %s, %s, %s, %s, %s, %s, %s, PARSE_JSON(%s), PARSE_JSON(%s)
             """,
             (run_id, r["question_id"], r["category"], r["question"],
              r["overall_score"], r["tool_correct"], r["passed"],
@@ -316,12 +327,7 @@ def run_evaluation(config: dict, ground_truth: list[dict], dry_run: bool = False
         agent_response = invoke_agent(conn, agent_fqn, question)
         elapsed        = time.time() - start
 
-        response_text = "".join(
-            block.get("text", "") if isinstance(block, dict) else block
-            for msg in agent_response.get("messages", [])
-            if msg.get("role") == "assistant"
-            for block in msg.get("content", [])
-        )
+        response_text = agent_response.get("content", "")
 
         tool_correct  = evaluate_tool_call(agent_response, expected_tool)
         judge_scores  = judge_response(conn, config, question, response_text, expected_behavior)
