@@ -184,53 +184,6 @@ The **Retail Category Analytics Agent** provides a natural language interface to
 
 ---
 
-## Deployment Guide
-
-### Prerequisites
-
-- Snowflake account with `RETAIL_CATEGORY_ANALYTICS_ROLE` access
-- Python 3.9+ (for scripts and Snowpark)
-- dbt-snowflake installed (`pip install dbt-snowflake`)
-- Snowflake CLI (`snow`) installed
-
-### Deployment Steps
-
-```bash
-# 1. Validate naming conventions
-python scripts/check_naming.py
-
-# 2. Deploy infrastructure (DCM)
-snow dcm plan --target DEV -c default
-snow dcm apply --target DEV -c default
-
-# 3. Deploy network/secrets (requires SYSADMIN)
-# Run sources/definitions/network.sql
-# Run sources/definitions/secrets.sql
-# Set SerpAPI key in Snowsight
-
-# 4. Deploy procedures
-# Run sources/definitions/procedures.sql
-# Deploy Python procedures from ingestion/snowpark/transforms.py
-
-# 5. Deploy tasks
-# Run ingestion/snowflake/tasks.sql
-# Resume tasks (leaf-first)
-
-# 6. Run dbt
-cd dbt && dbt deps && dbt run && dbt test && dbt snapshot
-
-# 7. Deploy agent
-python agent/deploy_all.py -c default --agent retail-category-analytics
-
-# 8. Run agent evals
-python agent/run_evals.py --agent retail-category-analytics
-
-# 9. Deploy Streamlit
-cd streamlit && snow streamlit deploy --replace
-```
-
----
-
 ## Project Structure
 
 ```
@@ -359,41 +312,6 @@ Standalone (manual): `INGEST_COMPETITOR_PRICES_FROM_SERPAPI_TASK`
 | Semantic View | Pricing Analytics | 1 |
 
 ---
-
-## Getting Started
-
-### Prerequisites
-
-- Snowflake account with `RETAIL_CATEGORY_ANALYTICS_ROLE` access
-- Python 3.9+ (for scripts and Snowpark)
-- dbt-snowflake installed (`pip install dbt-snowflake`)
-
-### Validate Naming Conventions
-
-```bash
-python scripts/check_naming.py
-```
-
-### Run dbt
-
-```bash
-cd dbt
-dbt deps
-dbt run
-dbt test
-```
-
-### Deploy Agent
-
-```bash
-python agent/deploy_all.py -c default --agent retail-category-analytics
-```
-
-### Run Agent Evals
-
-```bash
-python agent/run_evals.py --agent retail-category-analytics
-```
 
 ---
 
