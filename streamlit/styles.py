@@ -20,7 +20,7 @@ import streamlit as st
 
 _PRIMARY = "#01b8fb"
 _PRIMARY_DARK = "#0d558b"
-_SECONDARY_BG = "#030c25"
+_SECONDARY_BG = "#000000"
 _ACCENT_LIGHT = "#ecf6fd"
 _ACCENT_MID = "#8ec9f5"
 _SURFACE = "#0a1a3a"
