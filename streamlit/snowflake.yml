@@ -8,7 +8,7 @@ entities:
       name: CATEGORY_INTELLIGENCE_PLATFORM
     title: Category Intelligence Platform
     query_warehouse: RETAIL_CATEGORY_ANALYTICS_WH
-    compute_pool: SYSTEM_COMPUTE_POOL_CPU
+    compute_pool: AGENT_DEMO
     run_mode: SpcsOnly
     execute_as: OWNER
     main_file: streamlit_app.py
