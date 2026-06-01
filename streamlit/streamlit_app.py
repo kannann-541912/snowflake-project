@@ -1,9 +1,8 @@
 """
-Category Intelligence
+Category Intelligence Solution
 Snowflake-Native Streamlit Application
 
 Tabs: Category | Promotions & Campaigns | Customer Loyalty | Returns & Margin Impact
-Sidebar: Analysis Views
 Agent Chat at top with business heading
 
 All data from DEMO_DEV.RETAIL_CATEGORY_ANALYTICS_AGENT schema.
@@ -18,7 +17,7 @@ from datetime import datetime
 # Force theme primaryColor before anything renders
 from streamlit import config as _stconfig
 _stconfig.set_option("theme.primaryColor", "#f97316")
-_stconfig.set_option("theme.backgroundColor", "#030c25")
+_stconfig.set_option("theme.backgroundColor", "#000000")
 _stconfig.set_option("theme.secondaryBackgroundColor", "#0d558b")
 _stconfig.set_option("theme.textColor", "#ecf6fd")
 
@@ -47,7 +46,7 @@ st.markdown("""
   /* Override Streamlit CSS variables at root — forces blue everywhere */
   :root {
     --primary-color: #f97316 !important;
-    --background-color: #030c25 !important;
+    --background-color: #000000 !important;
     --secondary-background-color: #0d558b !important;
     --text-color: #ecf6fd !important;
   }
@@ -82,13 +81,13 @@ st.markdown("""
     border-radius: 8px; padding: 8px 14px;
   }
   .kpi-card .kpi-label {
-    font-size: 0.68rem; font-weight: 700; color: #8ec9f5;
+    font-size: 0.82rem; font-weight: 700; color: #8ec9f5;
     text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1px;
   }
   .kpi-card .kpi-value {
-    font-size: 1.5rem; font-weight: 700; color: #ecf6fd; margin: 0;
+    font-size: 1.9rem; font-weight: 700; color: #ecf6fd; margin: 0;
   }
-  .kpi-card .kpi-delta { font-size: 0.7rem; margin-top: 1px; }
+  .kpi-card .kpi-delta { font-size: 0.95rem; margin-top: 1px; }
   .kpi-delta-up { color: #4ade80; }
   .kpi-delta-down { color: #fbbf24; }
 
@@ -108,7 +107,7 @@ st.markdown("""
 
   /* Section label */
   .section-label {
-    font-size: 0.72rem; font-weight: 700; color: #8ec9f5;
+    font-size: 0.85rem; font-weight: 700; color: #8ec9f5;
     text-transform: uppercase; letter-spacing: 0.07em; margin: 6px 0 4px 0;
   }
 
@@ -660,8 +659,8 @@ st.markdown(
     '</div>'.format(_logo_b64),
     unsafe_allow_html=True,
 )
-st.markdown('<h2 style="margin:0 0 2px 0;padding:0;color:#ecf6fd;font-weight:800;font-size:1.3rem;">Category Intelligence Platform</h2>', unsafe_allow_html=True)
-st.markdown('<p style="margin:0 0 8px 0;padding:0;font-size:0.72rem;color:#8ec9f5;font-style:italic;">AI-Native Decision Platform Powered by Snowflake Cortex</p>', unsafe_allow_html=True)
+st.markdown('<h2 style="margin:0 0 2px 0;padding:0;color:#ecf6fd;font-weight:800;font-size:1.3rem;">Category Intelligence Solution</h2>', unsafe_allow_html=True)
+st.markdown('<p style="margin:0 0 8px 0;padding:0;font-size:0.72rem;color:#8ec9f5;font-style:italic;">AI-Native Decision Solution Powered by Snowflake Cortex</p>', unsafe_allow_html=True)
 
 # Alert ticker with "ALERTS" label
 ticker_df = run_sql(f"""
@@ -1105,18 +1104,18 @@ with tab_main_cat:
                 </p>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:200px;background:#0d2818;border:1px solid #166534;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">✓ Top Performer</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{best_promo}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">{best_roas}x ROAS — Scale budget allocation here</p>
+                        <p style="font-size:0.8rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">✓ Top Performer</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{best_promo}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">{best_roas}x ROAS — Scale budget allocation here</p>
                     </div>
                     <div style="flex:1;min-width:200px;background:#1c1007;border:1px solid #92400e;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">⚠ Needs Review</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{worst_promo}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">{worst_roas}x ROAS — Consider pausing or reallocating budget</p>
+                        <p style="font-size:0.8rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">⚠ Needs Review</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{worst_promo}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">{worst_roas}x ROAS — Consider pausing or reallocating budget</p>
                     </div>
                     <div style="flex:1;min-width:200px;background:#030c25;border:1px solid #1e40af;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">💡 Recommendation</p>
-                        <p style="font-size:0.72rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">Shift {under_count} under-performing campaign budgets to high-ROAS channels. Expected portfolio ROAS improvement: +{round(best_roas - avg_roas, 1)}x</p>
+                        <p style="font-size:0.8rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">💡 Recommendation</p>
+                        <p style="font-size:0.82rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">Shift {under_count} under-performing campaign budgets to high-ROAS channels. Expected portfolio ROAS improvement: +{round(best_roas - avg_roas, 1)}x</p>
                     </div>
                 </div>
             </div>
@@ -1152,11 +1151,11 @@ with tab_main_cat:
                     status_label = status.replace("_", " ").title()
                     st.markdown(f"""
                     <div style="background:#0a1a3a;border:1px solid #1a3a5c;border-radius:8px;padding:12px;margin-bottom:8px;">
-                        <p style="font-size:0.75rem;font-weight:700;color:#8ec9f5;margin:0;">{row['PROMOTION_TYPE']}</p>
+                        <p style="font-size:0.85rem;font-weight:700;color:#8ec9f5;margin:0;">{row['PROMOTION_TYPE']}</p>
                         <p style="font-size:0.95rem;font-weight:700;color:#ecf6fd;margin:4px 0;">{row['PROMOTION_NAME']}</p>
-                        <p style="margin:2px 0;"><span style="color:{color};font-weight:700;font-size:0.8rem;">{status_label}</span></p>
-                        <p style="font-size:0.75rem;color:#8ec9f5;margin:2px 0;">Lift: {row['ACTUAL_UNIT_LIFT_PCT']}% actual vs {row['PLANNED_UNIT_LIFT_PCT']}% planned</p>
-                        <p style="font-size:0.75rem;color:#8ec9f5;margin:2px 0;">ROAS: {row['ESTIMATED_ROAS']}x · {row['SKU_COUNT']} SKUs · {row['TOTAL_UNITS_DURING_PROMO']} units</p>
+                        <p style="margin:2px 0;"><span style="color:{color};font-weight:700;font-size:0.88rem;">{status_label}</span></p>
+                        <p style="font-size:0.85rem;color:#8ec9f5;margin:2px 0;">Lift: {row['ACTUAL_UNIT_LIFT_PCT']}% actual vs {row['PLANNED_UNIT_LIFT_PCT']}% planned</p>
+                        <p style="font-size:0.85rem;color:#8ec9f5;margin:2px 0;">ROAS: {row['ESTIMATED_ROAS']}x · {row['SKU_COUNT']} SKUs · {row['TOTAL_UNITS_DURING_PROMO']} units</p>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -1261,18 +1260,18 @@ with tab_main_cat:
                 </p>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:200px;background:#1c1007;border:1px solid #92400e;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">🚨 Revenue at Risk</p>
+                        <p style="font-size:0.8rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">🚨 Revenue at Risk</p>
                         <p style="font-size:1.1rem;color:#ecf6fd;margin:2px 0;font-weight:700;">${rev_at_risk:,}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">{high_risk} high-churn members — Act now to retain</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">{high_risk} high-churn members — Act now to retain</p>
                     </div>
                     <div style="flex:1;min-width:200px;background:#0d2818;border:1px solid #166534;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">✓ Top at-Risk Customer</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{top_risk_name}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">LTV: ${top_risk_ltv:,} — Priority re-engagement target</p>
+                        <p style="font-size:0.8rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">✓ Top at-Risk Customer</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{top_risk_name}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">LTV: ${top_risk_ltv:,} — Priority re-engagement target</p>
                     </div>
                     <div style="flex:1;min-width:200px;background:#030c25;border:1px solid #1e40af;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">💡 Retention Opportunity</p>
-                        <p style="font-size:0.72rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">Retain {high_risk} at-risk members to protect ${rev_at_risk:,} in LTV. Target with personalized offers based on top category preferences.</p>
+                        <p style="font-size:0.8rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">💡 Retention Opportunity</p>
+                        <p style="font-size:0.82rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">Retain {high_risk} at-risk members to protect ${rev_at_risk:,} in LTV. Target with personalized offers based on top category preferences.</p>
                     </div>
                 </div>
             </div>
@@ -1304,12 +1303,12 @@ with tab_main_cat:
                     risk_pct = round(row["HIGH_RISK_COUNT"] / row["MEMBERS"] * 100, 0) if row["MEMBERS"] > 0 else 0
                     st.markdown(f"""
                     <div style="background:#0a1a3a;border:1px solid #1a3a5c;border-radius:8px;padding:10px;text-align:center;">
-                        <p style="font-size:0.72rem;font-weight:700;color:{color};margin:0;text-transform:uppercase;">{row['CUSTOMER_SEGMENT']}</p>
+                        <p style="font-size:0.82rem;font-weight:700;color:{color};margin:0;text-transform:uppercase;">{row['CUSTOMER_SEGMENT']}</p>
                         <p style="font-size:1.2rem;font-weight:700;color:#ecf6fd;margin:2px 0;">{row['MEMBERS']}</p>
-                        <p style="font-size:0.68rem;color:#8ec9f5;margin:2px 0;">LTV: ${row['TOTAL_LTV']:,}</p>
-                        <p style="font-size:0.68rem;color:#8ec9f5;margin:2px 0;">Avg: ${row['AVG_LTV']:,}</p>
-                        <p style="font-size:0.68rem;color:#fbbf24;margin:2px 0;">{int(row['HIGH_RISK_COUNT'])} at risk ({int(risk_pct)}%)</p>
-                        <p style="font-size:0.68rem;color:#fbbf24;margin:2px 0;">${row['LTV_AT_RISK']:,} at stake</p>
+                        <p style="font-size:0.8rem;color:#8ec9f5;margin:2px 0;">LTV: ${row['TOTAL_LTV']:,}</p>
+                        <p style="font-size:0.8rem;color:#8ec9f5;margin:2px 0;">Avg: ${row['AVG_LTV']:,}</p>
+                        <p style="font-size:0.8rem;color:#fbbf24;margin:2px 0;">{int(row['HIGH_RISK_COUNT'])} at risk ({int(risk_pct)}%)</p>
+                        <p style="font-size:0.8rem;color:#fbbf24;margin:2px 0;">${row['LTV_AT_RISK']:,} at stake</p>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -1317,7 +1316,7 @@ with tab_main_cat:
 
         # ─── CUSTOMER ACTION BOARD ───
         st.markdown("**Customer Action Board** — _Prioritized by revenue at risk (who to save first)_")
-        st.markdown("""<div style="font-size:0.65rem;color:#64748b;margin-bottom:6px;line-height:1.6;">
+        st.markdown("""<div style="font-size:0.78rem;color:#64748b;margin-bottom:6px;line-height:1.6;">
             <b style="color:#8ec9f5;">Column Guide:</b>
             <b>LTV ($)</b> = Estimated lifetime value based on spend history |
             <b>Days Inactive</b> = Days since last purchase |
@@ -1448,19 +1447,19 @@ with tab_main_cat:
                 </p>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:200px;background:#1c1007;border:1px solid #92400e;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">🚨 Biggest Margin Bleeder</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{worst_sku}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">-${worst_margin:,} margin lost · Reason: {top_reason}</p>
+                        <p style="font-size:0.8rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">🚨 Biggest Margin Bleeder</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{worst_sku}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">-${worst_margin:,} margin lost · Reason: {top_reason}</p>
                     </div>
                     <div style="flex:1;min-width:200px;background:#1c1007;border:1px solid #92400e;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">⚠ Top Return Driver</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{biggest_reason}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">${biggest_reason_margin:,} margin impact — Fix to reduce returns by ~40%</p>
+                        <p style="font-size:0.8rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">⚠ Top Return Driver</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{biggest_reason}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">${biggest_reason_margin:,} margin impact — Fix to reduce returns by ~40%</p>
                     </div>
                     <div style="flex:1;min-width:200px;background:#0d2818;border:1px solid #166534;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">💰 Recoverable Margin</p>
+                        <p style="font-size:0.8rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">💰 Recoverable Margin</p>
                         <p style="font-size:1.1rem;color:#ecf6fd;margin:2px 0;font-weight:700;">${recoverable:,}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">From {skus_flagged} flagged SKUs — rationalize or fix root causes</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">From {skus_flagged} flagged SKUs — rationalize or fix root causes</p>
                     </div>
                 </div>
             </div>
@@ -1525,7 +1524,7 @@ with tab_main_cat:
 
         # ─── SKU DECISION BOARD ───
         st.markdown("**SKU Decision Board** — _Sorted by margin impact (highest loss first)_")
-        st.markdown("""<div style="font-size:0.65rem;color:#64748b;margin-bottom:6px;line-height:1.6;">
+        st.markdown("""<div style="font-size:0.78rem;color:#64748b;margin-bottom:6px;line-height:1.6;">
             <b style="color:#8ec9f5;">Column Guide:</b>
             <b>Margin Lost ($)</b> = Total profit erosion from returns |
             <b>Return Rate %</b> = Returns as % of units sold |
@@ -1658,18 +1657,18 @@ with tab_main_health:
             </p>
             <div style="display:flex;gap:16px;flex-wrap:wrap;">
                 <div style="flex:1;min-width:200px;background:#1c1007;border:1px solid #92400e;border-radius:6px;padding:8px 12px;">
-                    <p style="font-size:0.68rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">🚨 Weakest Category</p>
-                    <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{weakest_cat['CATEGORY']} (Score: {int(weakest_cat['HEALTH_SCORE'])}/100)</p>
-                    <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">{int(weakest_cat['COUNT_OVERPRICED_SKUS'])} overpriced · {int(weakest_cat['COUNT_OUT_OF_STOCK_SKUS']) + int(weakest_cat['COUNT_LOW_STOCK_SKUS'])} stock issues · {weakest_cat['AVG_MARGIN']}% margin</p>
+                    <p style="font-size:0.8rem;color:#fbbf24;font-weight:700;margin:0;text-transform:uppercase;">🚨 Weakest Category</p>
+                    <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{weakest_cat['CATEGORY']} (Score: {int(weakest_cat['HEALTH_SCORE'])}/100)</p>
+                    <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">{int(weakest_cat['COUNT_OVERPRICED_SKUS'])} overpriced · {int(weakest_cat['COUNT_OUT_OF_STOCK_SKUS']) + int(weakest_cat['COUNT_LOW_STOCK_SKUS'])} stock issues · {weakest_cat['AVG_MARGIN']}% margin</p>
                 </div>
                 <div style="flex:1;min-width:200px;background:#0d2818;border:1px solid #166534;border-radius:6px;padding:8px 12px;">
-                    <p style="font-size:0.68rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">✓ Strongest Category</p>
-                    <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{strongest_cat['CATEGORY']} (Score: {int(strongest_cat['HEALTH_SCORE'])}/100)</p>
-                    <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">{strongest_cat['AVG_MARGIN']}% margin · {int(strongest_cat['COUNT_AT_PRICE_PARITY_SKUS'])} at parity</p>
+                    <p style="font-size:0.8rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">✓ Strongest Category</p>
+                    <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{strongest_cat['CATEGORY']} (Score: {int(strongest_cat['HEALTH_SCORE'])}/100)</p>
+                    <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">{strongest_cat['AVG_MARGIN']}% margin · {int(strongest_cat['COUNT_AT_PRICE_PARITY_SKUS'])} at parity</p>
                 </div>
                 <div style="flex:1;min-width:200px;background:#030c25;border:1px solid #1e40af;border-radius:6px;padding:8px 12px;">
-                    <p style="font-size:0.68rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">💡 Priority Actions</p>
-                    <p style="font-size:0.72rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">Replenish {total_needing_replenishment} SKUs · Reprice {total_needing_price} SKUs · Fix {total_out_of_stock} out-of-stock items</p>
+                    <p style="font-size:0.8rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">💡 Priority Actions</p>
+                    <p style="font-size:0.82rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">Replenish {total_needing_replenishment} SKUs · Reprice {total_needing_price} SKUs · Fix {total_out_of_stock} out-of-stock items</p>
                 </div>
             </div>
         </div>
@@ -1729,16 +1728,16 @@ with tab_main_health:
 
                 st.markdown(f"""
                 <div style="background:#0a1a3a;border:1px solid #1a3a5c;border-radius:8px;padding:12px;text-align:center;">
-                    <p style="font-size:0.68rem;font-weight:700;color:{health_color};margin:0;">{health_label}</p>
+                    <p style="font-size:0.8rem;font-weight:700;color:{health_color};margin:0;">{health_label}</p>
                     <p style="font-size:0.88rem;font-weight:700;color:#ecf6fd;margin:2px 0;">{row['CATEGORY']}</p>
                     <div style="background:#030c25;border-radius:4px;height:6px;margin:6px 0;">
                         <div style="background:{health_color};width:{bar_width}%;height:6px;border-radius:4px;"></div>
                     </div>
-                    <p style="font-size:0.72rem;font-weight:700;color:{health_color};margin:2px 0;">{score}/100</p>
-                    <p style="font-size:0.65rem;color:#8ec9f5;margin:2px 0;">{total_skus_cat} SKUs · {margin}% margin</p>
-                    <p style="font-size:0.65rem;color:#8ec9f5;margin:2px 0;">{int(row['COUNT_OVERPRICED_SKUS'])} overpriced · {stock_issues_cat} stock risk</p>
-                    <p style="font-size:0.65rem;color:#8ec9f5;margin:2px 0;">{cat_returns} returns</p>
-                    <p style="font-size:0.62rem;color:#60a5fa;margin:4px 0 0 0;font-style:italic;">{action_text}</p>
+                    <p style="font-size:0.82rem;font-weight:700;color:{health_color};margin:2px 0;">{score}/100</p>
+                    <p style="font-size:0.78rem;color:#8ec9f5;margin:2px 0;">{total_skus_cat} SKUs · {margin}% margin</p>
+                    <p style="font-size:0.78rem;color:#8ec9f5;margin:2px 0;">{int(row['COUNT_OVERPRICED_SKUS'])} overpriced · {stock_issues_cat} stock risk</p>
+                    <p style="font-size:0.78rem;color:#8ec9f5;margin:2px 0;">{cat_returns} returns</p>
+                    <p style="font-size:0.75rem;color:#60a5fa;margin:4px 0 0 0;font-style:italic;">{action_text}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -1806,8 +1805,8 @@ with tab_main_health:
                 st.markdown(f"""
                 <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;margin:3px 0;background:#0a1a3a;border-radius:6px;border-left:3px solid {sev_color};">
                     <span style="font-size:0.82rem;">{icon}</span>
-                    <span style="font-size:0.65rem;font-weight:700;color:{sev_color};min-width:55px;">{severity}</span>
-                    <span style="font-size:0.72rem;color:#ecf6fd;">{action}</span>
+                    <span style="font-size:0.78rem;font-weight:700;color:{sev_color};min-width:55px;">{severity}</span>
+                    <span style="font-size:0.82rem;color:#ecf6fd;">{action}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -1907,19 +1906,19 @@ with tab_main_sku:
                 </p>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:180px;background:#030c25;border:1px solid #1e40af;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">🎯 Pricing Position</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">${s['OUR_PRICE']} vs ${s['PRIMARY_COMP_PRICE'] if pd.notna(s['PRIMARY_COMP_PRICE']) else 'N/A'}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">Gap: <span style="color:{status_color};font-weight:600;">{s['GAP_PCT']}%</span> vs {s['PRIMARY_COMPETITOR_NAME'] or 'N/A'}</p>
+                        <p style="font-size:0.8rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">🎯 Pricing Position</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">${s['OUR_PRICE']} vs ${s['PRIMARY_COMP_PRICE'] if pd.notna(s['PRIMARY_COMP_PRICE']) else 'N/A'}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">Gap: <span style="color:{status_color};font-weight:600;">{s['GAP_PCT']}%</span> vs {s['PRIMARY_COMPETITOR_NAME'] or 'N/A'}</p>
                     </div>
                     <div style="flex:1;min-width:180px;background:#030c25;border:1px solid {'#92400e' if stock_urgency_color == '#fbbf24' else '#1e40af'};border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:{stock_urgency_color};font-weight:700;margin:0;text-transform:uppercase;">📦 Stock Forecast</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{f'{days_out} days until stockout' if days_out else 'N/A'}</p>
-                        <p style="font-size:0.7rem;color:{stock_urgency_color};margin:0;">{stock_urgency}</p>
+                        <p style="font-size:0.8rem;color:{stock_urgency_color};font-weight:700;margin:0;text-transform:uppercase;">📦 Stock Forecast</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{f'{days_out} days until stockout' if days_out else 'N/A'}</p>
+                        <p style="font-size:0.82rem;color:{stock_urgency_color};margin:0;">{stock_urgency}</p>
                     </div>
                     <div style="flex:1;min-width:180px;background:#0d2818;border:1px solid #166534;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">💡 AI Action</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{ai_action}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">{action_text}</p>
+                        <p style="font-size:0.8rem;color:#4ade80;font-weight:700;margin:0;text-transform:uppercase;">💡 AI Action</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{ai_action}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">{action_text}</p>
                     </div>
                 </div>
             </div>
@@ -2236,18 +2235,18 @@ with tab_main_price:
                 </p>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:180px;background:{'#0d2818' if margin_impact >= 0 else '#1c1007'};border:1px solid {'#166534' if margin_impact >= 0 else '#92400e'};border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:{impact_color};font-weight:700;margin:0;text-transform:uppercase;">💰 Margin Impact</p>
+                        <p style="font-size:0.8rem;color:{impact_color};font-weight:700;margin:0;text-transform:uppercase;">💰 Margin Impact</p>
                         <p style="font-size:1.1rem;color:#ecf6fd;margin:2px 0;font-weight:700;">{'+' if margin_impact >= 0 else ''}${margin_impact:,.0f}</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">From ${current_total_margin:,.0f} → ${new_total_margin:,.0f}</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">From ${current_total_margin:,.0f} → ${new_total_margin:,.0f}</p>
                     </div>
                     <div style="flex:1;min-width:180px;background:#030c25;border:1px solid #1e40af;border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">🎯 Competitive Shift</p>
-                        <p style="font-size:0.78rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{position_improved} improved · {position_worsened} worsened</p>
-                        <p style="font-size:0.7rem;color:#8ec9f5;margin:0;">SKUs moving from overpriced to parity or better</p>
+                        <p style="font-size:0.8rem;color:#60a5fa;font-weight:700;margin:0;text-transform:uppercase;">🎯 Competitive Shift</p>
+                        <p style="font-size:0.88rem;color:#ecf6fd;margin:2px 0;font-weight:600;">{position_improved} improved · {position_worsened} worsened</p>
+                        <p style="font-size:0.82rem;color:#8ec9f5;margin:0;">SKUs moving from overpriced to parity or better</p>
                     </div>
                     <div style="flex:1;min-width:180px;background:{'#1c1007' if risk_level == 'HIGH' else '#030c25'};border:1px solid {'#92400e' if risk_level == 'HIGH' else '#1e40af'};border-radius:6px;padding:8px 12px;">
-                        <p style="font-size:0.68rem;color:{risk_color};font-weight:700;margin:0;text-transform:uppercase;">⚠ Risk: {risk_level}</p>
-                        <p style="font-size:0.72rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">{risk_text}</p>
+                        <p style="font-size:0.8rem;color:{risk_color};font-weight:700;margin:0;text-transform:uppercase;">⚠ Risk: {risk_level}</p>
+                        <p style="font-size:0.82rem;color:#ecf6fd;margin:2px 0;line-height:1.4;">{risk_text}</p>
                     </div>
                 </div>
             </div>
@@ -2285,9 +2284,9 @@ with tab_main_price:
                         flag_color = "#fbbf24" if "NEGATIVE" in row["RISK_FLAG"] else "#fbbf24"
                         st.markdown(f"""
                         <div style="background:#0a1a3a;border-left:3px solid {flag_color};border-radius:0 6px 6px 0;padding:6px 10px;margin:4px 0;">
-                            <p style="font-size:0.72rem;font-weight:700;color:#ecf6fd;margin:0;">{row['PRODUCT_NAME'][:30]}</p>
-                            <p style="font-size:0.65rem;color:#8ec9f5;margin:1px 0;">${row['OUR_CURRENT_PRICE']} → ${row['NEW_PRICE']} · Margin: {row['NEW_MARGIN_PCT']}%</p>
-                            <p style="font-size:0.65rem;color:{flag_color};margin:0;">{row['RISK_FLAG']}</p>
+                            <p style="font-size:0.82rem;font-weight:700;color:#ecf6fd;margin:0;">{row['PRODUCT_NAME'][:30]}</p>
+                            <p style="font-size:0.78rem;color:#8ec9f5;margin:1px 0;">${row['OUR_CURRENT_PRICE']} → ${row['NEW_PRICE']} · Margin: {row['NEW_MARGIN_PCT']}%</p>
+                            <p style="font-size:0.78rem;color:{flag_color};margin:0;">{row['RISK_FLAG']}</p>
                         </div>
                         """, unsafe_allow_html=True)
                 else:
