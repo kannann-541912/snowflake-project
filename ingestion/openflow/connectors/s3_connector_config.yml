@@ -5,6 +5,9 @@
 #
 # For programmatic deployment, these values are set via nipyapi in flows/*.py.
 # Reference: https://docs.snowflake.com/en/user-guide/data-integration/openflow/connectors/
+#
+# Environment naming: {database} placeholder is resolved from pipeline_config.yml
+# environments block at deploy time. DEV → SANDBOX_DEV, PROD → SANDBOX.
 
 connector:
   name: "TPCH_S3_Connector"
@@ -27,7 +30,7 @@ instances:
     record_format: "CSV"
     csv_header: true
     destination:
-      database: "SANDBOX"
+      database: "{database}"
       schema: "TPCH_LANDING"
       table: "CUSTOMERS_RAW"
       account: "xna38553.east-us-2.azure"
@@ -40,7 +43,7 @@ instances:
     record_format: "CSV"
     csv_header: true
     destination:
-      database: "SANDBOX"
+      database: "{database}"
       schema: "TPCH_LANDING"
       table: "ORDERS_RAW"
       account: "xna38553.east-us-2.azure"
@@ -51,8 +54,8 @@ error_handling:
   max_retries: 3
   penalize_on_retry: true
   dead_letter_queue:
-    customers: "SANDBOX.TPCH_LANDING.CUSTOMERS_DLQ"
-    orders: "SANDBOX.TPCH_LANDING.ORDERS_DLQ"
+    customers: "{database}.TPCH_LANDING.CUSTOMERS_DLQ"
+    orders: "{database}.TPCH_LANDING.ORDERS_DLQ"
 
 # Monitoring
 monitoring:

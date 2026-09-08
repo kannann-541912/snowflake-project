@@ -1,24 +1,38 @@
 # Ingestion Pipeline Configuration
 # Applies to all Openflow flows and Snowflake Tasks in this directory.
 
+# Environment configuration — controls naming suffix for all objects
+# Deploy with: --env DEV or --env PROD
+environments:
+  DEV:
+    env_suffix: "_DEV"
+    database: "SANDBOX_DEV"
+    warehouse: "ANALYTICS_WH_DEV"
+    role: "DATA_ENGINEER_DEV"
+    openflow_role: "DATA_PLATFORM_OPENFLOW_DEV"
+  PROD:
+    env_suffix: ""
+    database: "SANDBOX"
+    warehouse: "ANALYTICS_WH"
+    role: "DATA_PLATFORM_ADMIN"
+    openflow_role: "DATA_PLATFORM_OPENFLOW"
+
 snowflake:
   account: "xna38553.east-us-2.azure"
   user: "MCP_SERVICE_USER"
-  database: "SANDBOX"
+  database: "SANDBOX"             # Override per environment above
   schema: "TPCH"
-  landing_schema: "TPCH_LANDING"       # Raw landing zone (bronze layer)
-  warehouse: "ANALYTICS_WH"
+  landing_schema: "TPCH_LANDING"
+  warehouse: "ANALYTICS_WH"       # Override per environment above
   role: "ACCOUNTADMIN"
-  openflow_role: "DATA_PLATFORM_OPENFLOW"  # Least-privilege role for Openflow runtime
+  openflow_role: "DATA_PLATFORM_OPENFLOW"
 
 # Openflow SPCS deployment configuration
 openflow:
-  deployment_type: "SPCS"              # Openflow - Snowflake (SPCS-hosted)
+  deployment_type: "SPCS"
   compute_pool: "TPCH_OPENFLOW_POOL"
   runtime_name: "TPCH_OPENFLOW_RUNTIME"
-  # Authentication: Snowflake Managed Token (auto-managed SPCS session token)
   auth_strategy: "SNOWFLAKE_MANAGED"
-  # Runtime URL is set after SPCS deployment — store in Snowsight or CI secret
   runtime_url_secret: "OPENFLOW_RUNTIME_URL"
 
 # S3 source configuration for Openflow connectors
@@ -26,17 +40,17 @@ source:
   customers:
     bucket: "your-data-bucket"
     prefix: "customers/"
-    schedule_cron: "0 0 6 * * ?"      # Daily at 06:00 UTC (Quartz cron for NiFi)
-    landing_table: "SANDBOX.TPCH_LANDING.CUSTOMERS_RAW"
-    dlq_table: "SANDBOX.TPCH_LANDING.CUSTOMERS_DLQ"
+    schedule_cron: "0 0 6 * * ?"
+    landing_table: "{database}.TPCH_LANDING.CUSTOMERS_RAW"
+    dlq_table: "{database}.TPCH_LANDING.CUSTOMERS_DLQ"
 
   orders:
     bucket: "your-data-bucket"
     prefix: "orders/"
-    schedule_cron: "0 0 0/4 * * ?"    # Every 4 hours (Quartz cron)
-    landing_table: "SANDBOX.TPCH_LANDING.ORDERS_RAW"
-    dlq_table: "SANDBOX.TPCH_LANDING.ORDERS_DLQ"
+    schedule_cron: "0 0 0/4 * * ?"
+    landing_table: "{database}.TPCH_LANDING.ORDERS_RAW"
+    dlq_table: "{database}.TPCH_LANDING.ORDERS_DLQ"
 
 # Snowflake Task DAG schedule (runs after Openflow lands data into landing tables)
 snowflake_tasks:
-  root_task_schedule: "5 6 * * *"     # 06:05 UTC — after Openflow daily load
+  root_task_schedule: "5 6 * * *"

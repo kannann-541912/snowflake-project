@@ -1,8 +1,8 @@
 # Snowflake Account Operations Platform
 
-> A unified engineering platform for managing a production Snowflake account across three operational disciplines: **DataOps**, **MLOps**, and **AgentOps**.
+> A unified engineering platform for managing a production Snowflake account across four operational disciplines: **InfraOps**, **DataOps**, **MLOps**, and **AgentOps**.
 
-This repository is the single source of truth for all Snowflake infrastructure, data pipelines, ML model lifecycle, AI agent operations, and observability dashboards. Every object, model, and agent that runs in the account is declared, versioned, tested, and deployed from here.
+This repository is the single source of truth for all Snowflake infrastructure, IAM, data pipelines, ML model lifecycle, AI agent operations, and observability dashboards. Every object, model, and agent that runs in the account is declared, versioned, tested, and deployed from here.
 
 ---
 
@@ -10,7 +10,8 @@ This repository is the single source of truth for all Snowflake infrastructure, 
 
 | Pillar | Scope | Key Components |
 |--------|-------|---------------|
-| **DataOps** | Infrastructure, ingestion, and transformation | DCM (declarative objects), Snowflake Openflow, Snowflake Task DAG, dbt |
+| **InfraOps** | IAM, roles, warehouses, account-level objects | Terraform (roles, users, grants, warehouses, resource monitors, network policies) |
+| **DataOps** | Ingestion, transformation, declarative objects | DCM (declarative objects), Snowflake Openflow, Snowflake Task DAG, dbt |
 | **MLOps** | Custom ML model lifecycle | Model registry, lineage, monitoring, governance, deployment controls |
 | **AgentOps** | AI agent operations | Cortex Agent lifecycle, LLM evaluation, prompt versioning, usage observability |
 | **Dashboards** | Operational visibility | Multi-app Streamlit in Snowflake (SiS) |
@@ -21,17 +22,18 @@ This repository is the single source of truth for all Snowflake infrastructure, 
 
 ## Snowflake Account
 
-| Setting | Value |
-|---------|-------|
-| Account | `xna38553.east-us-2.azure` |
-| Host | `xna38553.east-us-2.azure.snowflakecomputing.com` |
-| Auth | Programmatic Access Token (PAT) |
-| Primary database | `SANDBOX` |
-| Primary schema | `TPCH` / `TPCH_LANDING` |
-| ML databases | `ML_DEV` / `ML_STAGING` / `ML_PROD` |
-| Warehouse | `ANALYTICS_WH` |
-| Service user | `MCP_SERVICE_USER` |
-| Default role | `ACCOUNTADMIN` |
+| Setting | DEV | PROD |
+|---------|-----|------|
+| Account | `xna38553.east-us-2.azure` | `xna38553.east-us-2.azure` |
+| Auth | Programmatic Access Token (PAT) | Programmatic Access Token (PAT) |
+| Database | `SANDBOX_DEV` | `SANDBOX` |
+| Schemas | `TPCH` / `TPCH_LANDING` | `TPCH` / `TPCH_LANDING` |
+| ML database | `ML_PROD_DEV` | `ML_PROD` |
+| Warehouse | `ANALYTICS_WH_DEV` / `COMPUTE_WH_DEV` | `ANALYTICS_WH` / `COMPUTE_WH` |
+| Service users | `CI_DEPLOY_SVC_DEV`, `MCP_SERVICE_USER_DEV` | `CI_DEPLOY_SVC`, `MCP_SERVICE_USER` |
+| Admin role | `DATA_PLATFORM_ADMIN_DEV` | `DATA_PLATFORM_ADMIN` |
+
+> **Naming convention**: all environment-scoped objects follow `<NAME><env_suffix>` where `env_suffix` is `_DEV` for DEV and empty for PROD. This convention is enforced consistently across Terraform, DCM, dbt, and ingestion configs.
 
 ### Local Setup
 
@@ -59,9 +61,24 @@ snowflake-project/
 ├── config.toml.example          # Connection template — copy to config.toml
 ├── manifest.yml                 # DCM project config (DEV / CI / PROD targets)
 │
+├── terraform/                   # ── InfraOps: IAM & account-level objects ──
+│   ├── main.tf                  # Snowflake provider + module wiring
+│   ├── variables.tf             # environment, env_suffix, account vars
+│   ├── outputs.tf               # Exported role/warehouse names
+│   ├── environments/
+│   │   ├── dev.tfvars           # DEV overrides (suffix: _DEV)
+│   │   └── prod.tfvars          # PROD overrides (suffix: empty)
+│   └── modules/
+│       ├── roles/               # Functional role hierarchy (7 roles)
+│       ├── users/               # Service users (RSA key-pair auth)
+│       ├── grants/              # Role-to-object privilege grants
+│       └── account/             # Warehouses, resource monitors, network policies
+│
 ├── sources/                     # ── DataOps: Declarative infrastructure ──
 │   └── definitions/
 │       ├── infrastructure.sql   # DEFINE WAREHOUSE (size, suspend policy)
+│       ├── stages.sql           # External S3 stages + file formats
+│       ├── landing_tables.sql   # DEFINE TABLE — CUSTOMERS_RAW, ORDERS_RAW
 │       ├── tables.sql           # DEFINE TABLE — CUSTOMERS, ORDERS
 │       ├── views.sql            # DEFINE VIEW  — CUSTOMER_ORDER_SUMMARY
 │       └── access.sql           # DEFINE ROLE + GRANT — DATA_READER
@@ -72,20 +89,19 @@ snowflake-project/
 │   │   ├── flows/               # nipyapi flow definitions (Python)
 │   │   └── connectors/          # S3 connector config reference
 │   ├── snowflake/               # Native Snowflake objects
-│   │   ├── stages.sql           # External S3 stages + file formats
-│   │   ├── streams.sql          # CDC streams + TPCH_LANDING tables
+│   │   ├── streams.sql          # CDC streams on landing + curated tables
 │   │   └── tasks.sql            # Task DAG: MERGE → LOAD → REFRESH
 │   ├── snowpark/                # Complex transforms as stored procedures
-│   └── config/                  # Pipeline config YAML
+│   └── config/                  # Pipeline config YAML (with environment block)
 │
 ├── dbt/                         # ── DataOps: Transform layer ──
 │   ├── models/staging/          # Source-aligned views (1:1 with raw tables)
 │   ├── models/intermediate/     # Ephemeral joins (never queried directly)
 │   ├── models/marts/            # Incremental fact tables (Cortex Agent + BI)
 │   ├── snapshots/               # Type-2 SCD on customers
-│   ├── macros/                  # Schema naming, Snowflake-specific helpers
+│   ├── macros/                  # Schema/database naming, Snowflake helpers
 │   ├── tests/generic/           # Custom reusable data quality tests
-│   └── profiles.yml.example     # dbt profile template
+│   └── profiles.yml.example     # dbt profile template (per-env overrides)
 │
 ├── custom-ml-models/            # ── MLOps: Custom model lifecycle ──
 │   ├── OPERATING_MODEL.md       # Lifecycle stages, roles, gates, control policies
@@ -128,19 +144,83 @@ snowflake-project/
 
 ---
 
+## InfraOps (Terraform)
+
+`terraform/` manages all Snowflake IAM (users, roles, grants) and account-level objects (warehouses, resource monitors, network policies) as code. All resources are environment-aware via `env_suffix`.
+
+### Role Hierarchy
+
+```
+ACCOUNTADMIN
+└── SYSADMIN
+     └── DATA_PLATFORM_ADMIN     (owns databases, schemas, integrations)
+          ├── DATA_ENGINEER       (DDL + DML on all schemas)
+          ├── DATA_SCIENTIST      (read curated + manage ML models)
+          └── DATA_READER         (select-only on curated marts)
+     └── CI_DEPLOY_ROLE           (deployment automation)
+     └── DATA_PLATFORM_OPENFLOW   (Openflow SPCS runtime)
+     └── MCP_SERVICE_ROLE         (Cortex Code agent)
+```
+
+### Service Users
+
+| User | Default Role | Auth | Purpose |
+|------|-------------|------|---------|
+| `CI_DEPLOY_SVC` | `CI_DEPLOY_ROLE` | RSA key-pair | CI/CD deployments |
+| `MCP_SERVICE_USER` | `MCP_SERVICE_ROLE` | RSA key-pair | Cortex Code operations |
+| `OPENFLOW_SVC` | `DATA_PLATFORM_OPENFLOW` | RSA key-pair | Openflow SPCS runtime |
+
+### Usage
+
+```bash
+cd terraform
+
+# Initialize
+terraform init
+
+# Plan for DEV
+terraform plan -var-file=environments/dev.tfvars
+
+# Apply to DEV
+terraform apply -var-file=environments/dev.tfvars
+
+# Plan for PROD
+terraform plan -var-file=environments/prod.tfvars
+```
+
+For the full module reference see [`terraform/README.md`](terraform/README.md).
+
+---
+
+## Environment Naming Convention
+
+All environment-scoped objects follow `<NAME><env_suffix>` consistently across every layer:
+
+| Layer | Mechanism | DEV example | PROD example |
+|-------|-----------|-------------|-------------|
+| Terraform | `var.env_suffix` | `DATA_READER_DEV` | `DATA_READER` |
+| DCM (`sources/`) | `{{env_suffix}}` template | `SANDBOX_DEV.TPCH.CUSTOMERS` | `SANDBOX.TPCH.CUSTOMERS` |
+| Ingestion (tasks, streams) | `{{env_suffix}}` template | `SANDBOX_DEV.TPCH.PIPELINE_ROOT_TASK` | `SANDBOX.TPCH.PIPELINE_ROOT_TASK` |
+| dbt | `var('env_suffix')` + `generate_database_name` macro | `SANDBOX_DEV.TPCH_staging.stg_customers` | `SANDBOX.staging.stg_customers` |
+| Pipeline config | `environments:` YAML block | `database: SANDBOX_DEV` | `database: SANDBOX` |
+
+This ensures DEV and PROD are fully isolated — no shared databases, warehouses, or roles between environments.
+
+---
+
 ## DataOps
 
-DataOps covers all infrastructure management, data ingestion, and transformations in this account.
+DataOps covers data ingestion and transformations in this account. Infrastructure (roles, warehouses) is managed by Terraform in `terraform/`; declarative schema objects are managed by DCM in `sources/`.
 
 ### Declarative Infrastructure (DCM)
 
-Snowflake objects are managed as code in `sources/definitions/` using `DEFINE` statements. DCM computes a diff and applies only what changed.
+Snowflake objects are managed as code in `sources/definitions/` using `DEFINE` statements with `{{env_suffix}}` templating. DCM computes a diff and applies only what changed.
 
-| DCM Target | Database | Used for |
-|------------|----------|---------|
-| `DEV` | `SANDBOX` | Local development |
-| `CI` | `SANDBOX_<BRANCH>` | Branch pipeline (zero-copy clone, auto-cleaned) |
-| `PROD` | `SANDBOX` | Production — auto-deployed on merge to `main` |
+| DCM Target | Database | `env_suffix` | Used for |
+|------------|----------|-------------|---------|
+| `DEV` | `SANDBOX_DEV` | `_DEV` | Local development |
+| `CI` | `SANDBOX_<BRANCH>` | `_DEV` | Branch pipeline (zero-copy clone, auto-cleaned) |
+| `PROD` | `SANDBOX` | _(empty)_ | Production — auto-deployed on merge to `main` |
 
 ```bash
 # Preview changes before applying
@@ -343,6 +423,7 @@ Triggers on every pull request to `main`. All jobs run in parallel.
 
 | Job | Pillar | What it validates |
 |-----|--------|------------------|
+| `validate-terraform` | InfraOps | `terraform fmt -check`, `terraform validate`, `terraform plan` dry-run |
 | `validate-dcm` | DataOps | DCM analyze + plan dry-run against DEV target |
 | `validate-ingestion` | DataOps | Openflow flow syntax + dry-run config check |
 | `validate-dbt` | DataOps | `dbt compile`, `dbt parse` |
@@ -365,15 +446,16 @@ Triggers on every pull request to `main`. All jobs run in parallel.
 
 ```
 guard
- └── clone-db          (DEV only — zero-copy clone: SANDBOX → SANDBOX_<BRANCH>)
-       └── deploy-dcm  (schema objects)
-             ├── deploy-ml-models   (MLOps SQL foundation: 001 → 002 → 003)
-             └── deploy-ingestion   (stages, streams, tasks, Openflow flows, Snowpark)
-                   └── deploy-dbt   (dbt run + test + snapshot)
-                         ├── deploy-streamlit  (all apps via deploy_all.py)
-                         └── deploy-agent
-                               └── run-agent-evals  (upload artifact; skippable)
-                                     └── cleanup-clone  (DEV: drop clone — always runs)
+ └── terraform plan/apply  (IAM, warehouses, resource monitors)
+       └── clone-db          (DEV only — zero-copy clone: SANDBOX_DEV → SANDBOX_<BRANCH>)
+             └── deploy-dcm  (schema objects)
+                   ├── deploy-ml-models   (MLOps SQL foundation: 001 → 002 → 003)
+                   └── deploy-ingestion   (stages, streams, tasks, Openflow flows, Snowpark)
+                         └── deploy-dbt   (dbt run + test + snapshot)
+                               ├── deploy-streamlit  (all apps via deploy_all.py)
+                               └── deploy-agent
+                                     └── run-agent-evals  (upload artifact; skippable)
+                                           └── cleanup-clone  (DEV: drop clone — always runs)
 ```
 
 #### Branch Clone Database (DEV only)
@@ -399,10 +481,13 @@ snow sql -q "DROP DATABASE IF EXISTS SANDBOX_FEATURE_MY_MODEL;" -c dev
 
 | Setting | DEV | PROD |
 |---------|-----|------|
-| Snowflake database | `SANDBOX_<BRANCH>` (clone) | `SANDBOX` |
-| ML database | `ML_DEV` | `ML_PROD` |
+| Snowflake database | `SANDBOX_<BRANCH>` (clone of `SANDBOX_DEV`) | `SANDBOX` |
+| ML database | `ML_PROD_DEV` | `ML_PROD` |
 | DCM target | `CI` (patched to clone) | `PROD` |
-| dbt schema | `TPCH_DEV` | `TPCH` |
+| dbt database | Clone DB | `SANDBOX` |
+| dbt schema | `TPCH_DEV_<custom>` | `<custom>` (staging, marts, etc.) |
+| Warehouse | `ANALYTICS_WH_DEV` | `ANALYTICS_WH` |
+| env_suffix | `_DEV` | _(empty)_ |
 | Source freshness failure | warn only | blocks pipeline |
 | Clone cleanup | auto-dropped | n/a |
 
@@ -434,6 +519,7 @@ Each directory has a developer-focused README with quickstart commands, structur
 
 | Folder | README | Covers |
 |--------|--------|--------|
+| `terraform/` | [`terraform/README.md`](terraform/README.md) | Modules, role hierarchy, usage commands, prerequisites |
 | `sources/` | [`sources/README.md`](sources/README.md) | DCM `DEFINE` syntax, object reference, change workflow |
 | `ingestion/` | [`ingestion/README.md`](ingestion/README.md) | Openflow setup, Task DAG, Snowpark deployment |
 | `dbt/` | [`dbt/README.md`](dbt/README.md) | Model layers, packages, lineage, dbt commands |

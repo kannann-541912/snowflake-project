@@ -58,6 +58,10 @@ vars:
   # Rolling window for incremental models
   incremental_lookback_hours: 48
 
+  # Environment identifier — drives naming conventions across all layers
+  # Override per target: DEV → "_DEV", PROD → ""
+  env_suffix: "_DEV"
+
   # Source database / schema (override for DEV)
   source_database: "SANDBOX"
   source_schema: "TPCH"

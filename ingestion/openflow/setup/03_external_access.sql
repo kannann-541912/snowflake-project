@@ -16,16 +16,16 @@ CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION TPCH_S3_EAI
     ENABLED = TRUE
     COMMENT = 'EAI allowing Openflow runtime to reach S3 data sources';
 
-GRANT USAGE ON INTEGRATION TPCH_S3_EAI TO ROLE DATA_PLATFORM_OPENFLOW;
+GRANT USAGE ON INTEGRATION TPCH_S3_EAI TO ROLE DATA_PLATFORM_OPENFLOW{{env_suffix}};
 
 -- ── AWS credentials secret (for S3 authentication) ─────────
 -- Store AWS credentials as a Snowflake secret instead of hardcoding in the flow.
-CREATE OR REPLACE SECRET SANDBOX.TPCH_LANDING.AWS_S3_CREDENTIALS
+CREATE OR REPLACE SECRET SANDBOX{{env_suffix}}.TPCH_LANDING.AWS_S3_CREDENTIALS
     TYPE = GENERIC_STRING
     SECRET_STRING = '{"aws_access_key_id": "", "aws_secret_access_key": ""}'
     COMMENT = 'AWS credentials for S3 access from Openflow. Update via Snowsight Secrets.';
 
-GRANT USAGE ON SECRET SANDBOX.TPCH_LANDING.AWS_S3_CREDENTIALS TO ROLE DATA_PLATFORM_OPENFLOW;
+GRANT USAGE ON SECRET SANDBOX{{env_suffix}}.TPCH_LANDING.AWS_S3_CREDENTIALS TO ROLE DATA_PLATFORM_OPENFLOW{{env_suffix}};
 
 -- ── (Optional) Kafka / streaming source ────────────────────
 -- Uncomment if ingesting from Kafka in addition to S3.

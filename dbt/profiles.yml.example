@@ -3,6 +3,11 @@
 #
 # Authentication: Snowflake Programmatic Access Token (PAT)
 # Set env var:  export SNOWFLAKE_PAT=<your-pat>
+#
+# Naming convention:
+#   DEV  → database: SANDBOX_DEV, warehouse: ANALYTICS_WH_DEV, env_suffix: "_DEV"
+#   PROD → database: SANDBOX,     warehouse: ANALYTICS_WH,     env_suffix: ""
+#   CI   → database: <clone_db>,  warehouse: ANALYTICS_WH_DEV, env_suffix: "_DEV"
 
 tpch_data_platform:
   target: dev
@@ -13,38 +18,47 @@ tpch_data_platform:
       user: "DBT_GITHUB_ACTIONS_SVC"
       authenticator: snowflake_jwt
       private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
-      role: RETAIL_CATEGORY_ANALYTICS_ROLE
-      database: SANDBOX
-      warehouse: ANALYTICS_WH
+      role: DATA_ENGINEER_DEV
+      database: SANDBOX_DEV
+      warehouse: ANALYTICS_WH_DEV
       schema: TPCH
       threads: 8
       client_session_keep_alive: false
       query_tag: "dbt_dev"
+      vars:
+        env_suffix: "_DEV"
+        source_database: "SANDBOX_DEV"
 
     prod:
       type: snowflake
       account: "xna38553.east-us-2.azure"
-      user: "MCP_SERVICE_USER"
+      user: "CI_DEPLOY_SVC"
       authenticator: programmatic_access_token
       token: "{{ env_var('SNOWFLAKE_PAT') }}"
-      role: ACCOUNTADMIN
+      role: DATA_PLATFORM_ADMIN
       database: SANDBOX
       warehouse: ANALYTICS_WH
       schema: TPCH
       threads: 8
       client_session_keep_alive: false
       query_tag: "dbt_prod"
+      vars:
+        env_suffix: ""
+        source_database: "SANDBOX"
 
     ci:
       type: snowflake
       account: "xna38553.east-us-2.azure"
-      user: "MCP_SERVICE_USER"
+      user: "CI_DEPLOY_SVC"
       authenticator: programmatic_access_token
       token: "{{ env_var('SNOWFLAKE_PAT') }}"
-      role: ACCOUNTADMIN
-      database: SANDBOX
-      warehouse: ANALYTICS_WH
-      schema: "TPCH_CI_{{ env_var('CI_RUN_ID', 'local') }}"
+      role: CI_DEPLOY_ROLE_DEV
+      database: "{{ env_var('CI_CLONE_DB', 'SANDBOX_DEV') }}"
+      warehouse: ANALYTICS_WH_DEV
+      schema: "TPCH"
       threads: 4
       client_session_keep_alive: false
       query_tag: "dbt_ci"
+      vars:
+        env_suffix: "_DEV"
+        source_database: "{{ env_var('CI_CLONE_DB', 'SANDBOX_DEV') }}"

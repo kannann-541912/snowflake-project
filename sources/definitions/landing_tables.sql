@@ -1,10 +1,10 @@
 -- ============================================================
 -- Landing tables — raw data loaded by COPY INTO from stages
--- Managed by DCM.
+-- Managed by DCM. All names use {{env_suffix}} templating.
 -- ============================================================
 
 -- Raw customers landing table
-DEFINE TABLE SANDBOX.TPCH_LANDING.CUSTOMERS_RAW (
+DEFINE TABLE SANDBOX{{env_suffix}}.TPCH_LANDING.CUSTOMERS_RAW (
     CUSTOMER_ID     NUMBER,
     NAME            VARCHAR(100),
     EMAIL           VARCHAR(255),
@@ -16,7 +16,7 @@ DEFINE TABLE SANDBOX.TPCH_LANDING.CUSTOMERS_RAW (
     CHANGE_TRACKING = TRUE;
 
 -- Raw orders landing table
-DEFINE TABLE SANDBOX.TPCH_LANDING.ORDERS_RAW (
+DEFINE TABLE SANDBOX{{env_suffix}}.TPCH_LANDING.ORDERS_RAW (
     ORDER_ID        NUMBER,
     CUSTOMER_ID     NUMBER,
     ORDER_DATE      VARCHAR(20),

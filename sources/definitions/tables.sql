@@ -1,7 +1,8 @@
 -- Table definitions
--- Add your DEFINE TABLE statements here.
+-- All object names use {{env_suffix}} for environment-aware naming.
+-- DEV → SANDBOX_DEV.TPCH.*, PROD → SANDBOX.TPCH.*
 
-DEFINE TABLE SANDBOX.TPCH.CUSTOMERS (
+DEFINE TABLE SANDBOX{{env_suffix}}.TPCH.CUSTOMERS (
     CUSTOMER_ID NUMBER NOT NULL,
     NAME VARCHAR(100),
     EMAIL VARCHAR(255),
@@ -9,7 +10,7 @@ DEFINE TABLE SANDBOX.TPCH.CUSTOMERS (
 )
     COMMENT = 'Customer master data';
 
-DEFINE TABLE SANDBOX.TPCH.ORDERS (
+DEFINE TABLE SANDBOX{{env_suffix}}.TPCH.ORDERS (
     ORDER_ID NUMBER NOT NULL,
     CUSTOMER_ID NUMBER NOT NULL,
     ORDER_DATE DATE,
