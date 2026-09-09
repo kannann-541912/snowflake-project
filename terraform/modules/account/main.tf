@@ -30,8 +30,8 @@ resource "snowflake_resource_monitor" "data_platform_monitor" {
   frequency       = "MONTHLY"
   start_timestamp = "IMMEDIATELY"
 
-  notify_triggers = [75, 90, 100]
-  suspend_trigger = 100
+  notify_triggers           = [75, 90, 100]
+  suspend_trigger           = 100
   suspend_immediate_trigger = 110
 }
 

@@ -1,14 +1,33 @@
 """
-Validates the Cortex Agent specification JSON.
+Validates Cortex Agent specification JSON files.
 Checks structure, required fields, and tool/resource consistency.
+
+Each agent lives in agent/agents/<agent-name>/ and its specs in specs/vN/agent_spec.json.
+Every spec version found is validated — a broken draft fails the check.
+
+Usage:
+    # Validate every spec version of every agent (CI default)
+    python scripts/validate_agent_spec.py
+
+    # Validate a single agent
+    python scripts/validate_agent_spec.py --agent tpch-analyst
+
+    # Validate one specific spec version
+    python scripts/validate_agent_spec.py --agent tpch-analyst --spec-version v2
+
+    # Validate only the version that would actually be deployed
+    python scripts/validate_agent_spec.py --latest-only
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import sys
 from pathlib import Path
 
-AGENT_SPEC_PATH = Path("agent/agent_spec.json")
-INSTRUCTIONS_PATH = Path("agent/instructions.md")
+PROJECT_ROOT = Path(__file__).parent.parent
+AGENTS_DIR   = PROJECT_ROOT / "agent" / "agents"
 
 REQUIRED_TOP_LEVEL_KEYS = {"models", "tools", "tool_resources"}
 REQUIRED_TOOL_SPEC_KEYS = {"type", "name", "description"}
@@ -17,6 +36,51 @@ VALID_TOOL_TYPES = {
     "cortex_search",
     "function",
 }
+
+
+def discover_agents() -> list[Path]:
+    return sorted(p.parent for p in AGENTS_DIR.glob("*/agent.yml"))
+
+
+def resolve_agent_dirs(agent_name: str | None) -> list[Path]:
+    agents = discover_agents()
+    if not agents:
+        print(f"ERROR: No agents found in {AGENTS_DIR}.", file=sys.stderr)
+        sys.exit(1)
+
+    if agent_name:
+        target = AGENTS_DIR / agent_name
+        if not target.is_dir() or not (target / "agent.yml").exists():
+            print(f"ERROR: Agent '{agent_name}' not found in {AGENTS_DIR}.", file=sys.stderr)
+            sys.exit(1)
+        return [target]
+
+    return agents
+
+
+def resolve_spec_paths(
+    agent_dir: Path, spec_version: str | None, latest_only: bool
+) -> list[Path]:
+    specs_dir = agent_dir / "specs"
+
+    if spec_version:
+        path = specs_dir / spec_version / "agent_spec.json"
+        if not path.exists():
+            print(f"ERROR: Spec not found: {path}", file=sys.stderr)
+            sys.exit(1)
+        return [path]
+
+    if not specs_dir.is_dir():
+        return []
+
+    # Highest vN first — mirrors deploy_agent.resolve_spec_path()
+    spec_dirs = sorted(
+        (d for d in specs_dir.iterdir() if d.is_dir() and d.name.startswith("v")),
+        key=lambda d: int(d.name[1:]) if d.name[1:].isdigit() else 0,
+        reverse=True,
+    )
+    paths = [d / "agent_spec.json" for d in spec_dirs if (d / "agent_spec.json").exists()]
+    return paths[:1] if latest_only else paths
 
 
 def validate_spec(spec: dict) -> list[str]:
@@ -113,35 +177,57 @@ def validate_spec(spec: dict) -> list[str]:
     return errors
 
 
-def main():
-    if not AGENT_SPEC_PATH.exists():
-        print(f"ERROR: {AGENT_SPEC_PATH} not found. Run from project root.")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Validate Cortex Agent spec JSON")
+    parser.add_argument("--agent",        default=None, help="Agent folder name (default: all agents)")
+    parser.add_argument("--spec-version", default=None, help="Validate only this version (e.g. v2)")
+    parser.add_argument("--latest-only",  action="store_true", help="Validate only the version that would be deployed")
+    args = parser.parse_args()
+
+    agent_dirs = resolve_agent_dirs(args.agent)
+
+    total_errors = 0
+    checked = 0
+
+    for agent_dir in agent_dirs:
+        spec_paths = resolve_spec_paths(agent_dir, args.spec_version, args.latest_only)
+
+        if not spec_paths:
+            print(f"ERROR: No agent_spec.json found in {agent_dir.name}/specs/", file=sys.stderr)
+            total_errors += 1
+            continue
+
+        # Prompts are optional in deploy_agent.py, but a spec with empty instructions
+        # and no prompt files deploys an agent with no guidance — worth flagging.
+        for prompt in ("orchestration.md", "response.md"):
+            if not (agent_dir / "prompts" / prompt).exists():
+                print(f"WARNING: {agent_dir.name}/prompts/{prompt} not found")
+
+        for spec_path in spec_paths:
+            rel = spec_path.relative_to(PROJECT_ROOT)
+            checked += 1
+
+            try:
+                spec = json.loads(spec_path.read_text())
+            except json.JSONDecodeError as e:
+                print(f"FAIL {rel}: invalid JSON: {e}", file=sys.stderr)
+                total_errors += 1
+                continue
+
+            errors = validate_spec(spec)
+            if errors:
+                print(f"FAIL {rel}", file=sys.stderr)
+                for error in errors:
+                    print(f"  - {error}", file=sys.stderr)
+                total_errors += len(errors)
+            else:
+                print(f"OK   {rel} ({len(spec['tools'])} tool(s))")
+
+    if total_errors:
+        print(f"\nFound {total_errors} error(s) across {checked} spec(s)", file=sys.stderr)
         sys.exit(1)
 
-    # Parse JSON
-    try:
-        spec = json.loads(AGENT_SPEC_PATH.read_text())
-    except json.JSONDecodeError as e:
-        print(f"ERROR: Invalid JSON in {AGENT_SPEC_PATH}: {e}")
-        sys.exit(1)
-
-    # Validate structure
-    errors = validate_spec(spec)
-
-    # Check instructions file exists (if referenced)
-    if not INSTRUCTIONS_PATH.exists():
-        errors.append(f"Instructions file not found: {INSTRUCTIONS_PATH}")
-
-    if errors:
-        print("AGENT SPEC VALIDATION ERRORS:")
-        print()
-        for error in errors:
-            print(f"  - {error}")
-        print(f"\nFound {len(errors)} error(s) in {AGENT_SPEC_PATH}")
-        sys.exit(1)
-    else:
-        print(f"OK: Agent spec is valid ({len(spec['tools'])} tool(s) configured)")
-        sys.exit(0)
+    print(f"\nAll {checked} spec(s) valid.")
 
 
 if __name__ == "__main__":

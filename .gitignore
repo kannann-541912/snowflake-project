@@ -17,6 +17,13 @@ config.toml
 *.p8
 profiles.yml        # dbt profiles — copy from profiles.yml.example
 
+# Terraform — state holds provisioned values in plaintext, never commit
+terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
 # dbt
 dbt/target/
 dbt/dbt_packages/
@@ -28,8 +35,8 @@ airflow.cfg
 airflow/logs/
 webserver_config.py
 
-# Agent eval results (generated at runtime)
-agent/evals/results/*.json
+# Agent eval results (generated at runtime, one dir per agent)
+agent/agents/*/evals/results/*.json
 
 # OS
 .DS_Store

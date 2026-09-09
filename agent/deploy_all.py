@@ -41,7 +41,8 @@ def deploy_agent(agent_dir: Path, connection: str, dry_run: bool) -> bool:
     agent_name = agent_dir.name
     print(f"\n>>> Deploying {agent_name}  ({agent_dir})")
 
-    build_cmd = ["python", str(DEPLOY_SCRIPT), "--agent", agent_name]
+    # sys.executable, not "python" — many systems (incl. macOS) only ship python3
+    build_cmd = [sys.executable, str(DEPLOY_SCRIPT), "--agent", agent_name]
     if dry_run:
         build_cmd.append("--dry-run")
         print(f"    Command: {' '.join(build_cmd)}")

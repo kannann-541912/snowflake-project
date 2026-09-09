@@ -9,6 +9,63 @@ env:
   SNOWFLAKE_USER: "MCP_SERVICE_USER"
 
 jobs:
+  validate-terraform:
+    name: Terraform Format & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+
+      # -backend=false skips state initialisation: this job needs no Snowflake
+      # credentials and no access to the local tfstate. It validates syntax,
+      # variable wiring and module contracts only.
+      - name: Terraform init (no backend)
+        run: terraform init -backend=false -input=false
+        working-directory: terraform
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+        working-directory: terraform
+
+      # `terraform plan` would catch a missing variable, but it needs state and
+      # Snowflake credentials. This check is credential-free: every variable in
+      # variables.tf that has no default must be assigned in every tfvars file.
+      - name: Every required variable is set in each tfvars
+        run: |
+          python3 - <<'EOF'
+          import pathlib, re, sys
+
+          tf_dir = pathlib.Path("terraform")
+          blocks = re.findall(
+              r'variable\s+"([^"]+)"\s*\{(.*?)\n\}',
+              (tf_dir / "variables.tf").read_text(),
+              re.DOTALL,
+          )
+          required = {name for name, body in blocks if not re.search(r'^\s*default\s*=', body, re.M)}
+
+          errors = []
+          for tfvars in sorted(tf_dir.glob("environments/*.tfvars")):
+              assigned = set(re.findall(r'^\s*([A-Za-z_][\w-]*)\s*=', tfvars.read_text(), re.M))
+              for missing in sorted(required - assigned):
+                  errors.append(f"{tfvars}: missing required variable '{missing}'")
+
+          if errors:
+              for e in errors:
+                  print(f"::error::{e}")
+              sys.exit(1)
+
+          print(f"All {len(required)} required variable(s) set in every tfvars file.")
+          EOF
+
   validate-dcm:
     name: DCM Analyze & Plan
     runs-on: ubuntu-latest
@@ -172,6 +229,9 @@ jobs:
 
           print(f"All agent directories have required files.")
           EOF
+
+      - name: Validate agent spec schema (all versions)
+        run: python scripts/validate_agent_spec.py
 
       - name: List discovered agents
         run: python agent/deploy_all.py --list

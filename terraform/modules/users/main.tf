@@ -3,29 +3,29 @@
 # ---------------------------------------------------------------------------
 
 resource "snowflake_user" "ci_deploy_svc" {
-  name          = "CI_DEPLOY_SVC${var.env_suffix}"
-  login_name    = "CI_DEPLOY_SVC${var.env_suffix}"
-  comment       = "CI/CD deployment service user [${var.environment}]"
-  default_role  = var.roles["ci_deploy_role"]
-  disabled      = false
+  name                 = "CI_DEPLOY_SVC${var.env_suffix}"
+  login_name           = "CI_DEPLOY_SVC${var.env_suffix}"
+  comment              = "CI/CD deployment service user [${var.environment}]"
+  default_role         = var.roles["ci_deploy_role"]
+  disabled             = false
   must_change_password = false
 }
 
 resource "snowflake_user" "mcp_service_user" {
-  name          = "MCP_SERVICE_USER${var.env_suffix}"
-  login_name    = "MCP_SERVICE_USER${var.env_suffix}"
-  comment       = "MCP service user for Cortex Code [${var.environment}]"
-  default_role  = var.roles["mcp_service_role"]
-  disabled      = false
+  name                 = "MCP_SERVICE_USER${var.env_suffix}"
+  login_name           = "MCP_SERVICE_USER${var.env_suffix}"
+  comment              = "MCP service user for Cortex Code [${var.environment}]"
+  default_role         = var.roles["mcp_service_role"]
+  disabled             = false
   must_change_password = false
 }
 
 resource "snowflake_user" "openflow_svc" {
-  name          = "OPENFLOW_SVC${var.env_suffix}"
-  login_name    = "OPENFLOW_SVC${var.env_suffix}"
-  comment       = "Openflow SPCS runtime service user [${var.environment}]"
-  default_role  = var.roles["data_platform_openflow"]
-  disabled      = false
+  name                 = "OPENFLOW_SVC${var.env_suffix}"
+  login_name           = "OPENFLOW_SVC${var.env_suffix}"
+  comment              = "Openflow SPCS runtime service user [${var.environment}]"
+  default_role         = var.roles["data_platform_openflow"]
+  disabled             = false
   must_change_password = false
 }
 
