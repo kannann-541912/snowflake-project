@@ -148,19 +148,36 @@ snowflake-project/
 
 `terraform/` manages all Snowflake IAM (users, roles, grants) and account-level objects (warehouses, resource monitors, network policies) as code. All resources are environment-aware via `env_suffix`.
 
-### Role Hierarchy
+### Role Model
+
+Two tiers: **access roles** (`AR_*`) hold object privileges; **functional roles**
+are personas that inherit them. Nothing grants object privileges directly to a
+functional role.
 
 ```
 ACCOUNTADMIN
 └── SYSADMIN
-     └── DATA_PLATFORM_ADMIN     (owns databases, schemas, integrations)
-          ├── DATA_ENGINEER       (DDL + DML on all schemas)
-          ├── DATA_SCIENTIST      (read curated + manage ML models)
-          └── DATA_READER         (select-only on curated marts)
-     └── CI_DEPLOY_ROLE           (deployment automation)
-     └── DATA_PLATFORM_OPENFLOW   (Openflow SPCS runtime)
-     └── MCP_SERVICE_ROLE         (Cortex Code agent)
+     └── DATA_PLATFORM_ADMIN     ◄── AR_SANDBOX_ADMIN, AR_SANDBOX_RW, AR_WH_ANALYTICS_ADMIN
+          ├── DATA_ENGINEER      ◄── AR_SANDBOX_RW, AR_WH_ANALYTICS_OPERATE
+          ├── DATA_SCIENTIST     ◄── AR_SANDBOX_RO, AR_ML_PROD_RW, AR_WH_ANALYTICS_USAGE
+          └── DATA_READER        ◄── AR_SANDBOX_RO, AR_WH_ANALYTICS_USAGE
+     └── CI_DEPLOY_ROLE          ◄── AR_SANDBOX_ADMIN, AR_SANDBOX_RW, AR_ML_PROD_RW, AR_WH_COMPUTE_OPERATE
+     └── DATA_PLATFORM_OPENFLOW  ◄── AR_SANDBOX_RW, AR_WH_ANALYTICS_USAGE
+     └── MCP_SERVICE_ROLE        ◄── AR_SANDBOX_RO, AR_WH_COMPUTE_OPERATE
 ```
+
+To give a persona new access, bind an access role in
+`terraform/modules/roles/main.tf` rather than adding a grant in
+`terraform/modules/grants/`.
+
+### Integrations & Data Sharing
+
+Account-level integrations (storage, notification, API, egress network rule)
+and outbound data sharing live in `terraform/modules/integrations/` and
+`terraform/modules/sharing/`. Both are **disabled by default** behind `enable_*`
+flags in `environments/*.tfvars`. See [`terraform/README.md`](terraform/README.md)
+for the flag reference and for which objects the provider cannot represent
+(external access integration, webhook notifications, Git integration, listings).
 
 ### Service Users
 

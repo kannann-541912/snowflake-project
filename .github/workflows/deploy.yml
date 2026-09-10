@@ -377,16 +377,12 @@ jobs:
             echo "Patched $f → ${CLONE_DB}"
           done
 
-      - name: Ensure storage integration exists (test pipeline)
-        run: |
-          snow sql -q "
-            CREATE STORAGE INTEGRATION IF NOT EXISTS TPCH_S3_INTEGRATION
-              TYPE = EXTERNAL_STAGE
-              STORAGE_PROVIDER = 'S3'
-              STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::000000000000:role/placeholder-role'
-              ENABLED = TRUE
-              STORAGE_ALLOWED_LOCATIONS = ('s3://your-data-bucket/');
-          " -c ${{ env.SNOW_CONN }}
+      # The storage integration is an account-level security object and is
+      # managed by Terraform (terraform/modules/integrations). It used to be
+      # created here with a placeholder IAM role ARN and IF NOT EXISTS, which
+      # meant a wrong integration was created once and then silently kept.
+      # Enable it with `enable_storage_integration = true` in the relevant
+      # environments/*.tfvars.
 
       - name: Deploy streams
         run: snow sql -f ingestion/snowflake/streams.sql -c ${{ env.SNOW_CONN }}

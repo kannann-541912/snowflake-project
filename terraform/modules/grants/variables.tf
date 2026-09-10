@@ -6,8 +6,8 @@ variable "env_suffix" {
   type = string
 }
 
-variable "roles" {
-  description = "Map of role names from the roles module"
+variable "access_roles" {
+  description = "Map of access role names from the roles module — all object privileges in this module attach to these, never to functional roles"
   type        = map(string)
 }
 
